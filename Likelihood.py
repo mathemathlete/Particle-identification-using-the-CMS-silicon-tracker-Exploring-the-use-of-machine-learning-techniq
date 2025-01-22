@@ -36,8 +36,8 @@ if __name__ == "__main__":
     print(f"Paramètres estimés fit: loc = {loc_est:.2f}, scale = {scale_est:.2f}")
     
     lando_dist = Likelihood_landau(data)
-    estimated_param = lando_dist.estimate_parameter(1,1)
-    print(f"Paramètres estimés Likelihood (mu,c): {estimated_param}")
+    estimated_param = lando_dist.estimate_parameter(1,1) # initialisation at value loc=1 and scale=1
+    print(f"Paramètres estimés Likelihood (mu,c): {estimated_param}") # Print estimated parameters
 
     xmin = loc_th - 2*scale_th
     xmax = loc_th + 10*scale_th
