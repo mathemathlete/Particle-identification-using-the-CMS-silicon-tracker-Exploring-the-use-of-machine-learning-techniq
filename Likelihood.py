@@ -52,8 +52,8 @@ if __name__ == "__main__":
     
     plt.plot(x, courbe_th, 'r-', lw=2, label='Courbe théorique')
     plt.plot(x, courbe_est, 'k--', lw=2, label='Courbe estimée')
-    plt.plot(bin_centers, hist, drawstyle='steps-mid', label='Histogram-based PDF')
-    plt.title('Comparaison de la courbe théorique et estimée')
+    plt.plot(bin_centers, hist, drawstyle='steps-mid', label='Histogramme à partir des données simulées')
+    plt.title('Comparaison entre Simulation et Estimateur')
     plt.xlabel('x')
     plt.ylabel('PDF')
     plt.legend()
