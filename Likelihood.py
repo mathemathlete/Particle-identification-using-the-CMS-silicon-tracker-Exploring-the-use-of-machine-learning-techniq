@@ -22,7 +22,6 @@ class Likelihood_landau:
         else:
             raise RuntimeError("Echec")
 
-# Example usage
 if __name__ == "__main__":
     loc_th = 5
     scale_th = 3
