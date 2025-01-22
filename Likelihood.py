@@ -3,7 +3,7 @@ from scipy.optimize import minimize
 from scipy.stats import landau
 import matplotlib.pyplot as plt
 
-class LandoDistribution:
+class Likelihood_landau:
     # Distribution de Landau de paramètre µ/mu (location) et c (scale)
     def __init__(self, data):
         self.data = np.array(data)
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     loc_est, scale_est = param
     print(f"Paramètres estimés fit: loc = {loc_est:.2f}, scale = {scale_est:.2f}")
     
-    lando_dist = LandoDistribution(data)
+    lando_dist = likelihood_landau(data)
     estimated_param = lando_dist.estimate_parameter(1,1)
     print(f"Paramètres estimés Likelihood (mu,c): {estimated_param}")
 
