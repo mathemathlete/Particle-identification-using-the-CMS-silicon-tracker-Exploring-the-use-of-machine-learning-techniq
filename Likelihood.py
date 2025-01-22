@@ -35,7 +35,7 @@ if __name__ == "__main__":
     loc_est, scale_est = param
     print(f"Paramètres estimés fit: loc = {loc_est:.2f}, scale = {scale_est:.2f}")
     
-    lando_dist = likelihood_landau(data)
+    lando_dist = Likelihood_landau(data)
     estimated_param = lando_dist.estimate_parameter(1,1)
     print(f"Paramètres estimés Likelihood (mu,c): {estimated_param}")
 
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     
     plt.plot(x, courbe_th, 'r-', lw=2, label='Courbe théorique')
     plt.plot(x, courbe_est, 'k--', lw=2, label='Courbe estimée')
-    plt.title('Fonction de densité de probabilité de la distribution de Landau')
+    plt.title('Comparaison de la courbe théorique et estimée')
     plt.xlabel('x')
     plt.ylabel('PDF')
     plt.legend()
