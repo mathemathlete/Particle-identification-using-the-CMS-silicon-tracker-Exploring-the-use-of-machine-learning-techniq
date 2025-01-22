@@ -22,7 +22,6 @@ class Likelihood_landau:
         else:
             raise RuntimeError("Echec")
 
-# Example usage
 if __name__ == "__main__":
     loc_th = 5
     scale_th = 3
@@ -35,7 +34,7 @@ if __name__ == "__main__":
     loc_est, scale_est = param
     print(f"Paramètres estimés fit: loc = {loc_est:.2f}, scale = {scale_est:.2f}")
     
-    lando_dist = likelihood_landau(data)
+    lando_dist = Likelihood_landau(data)
     estimated_param = lando_dist.estimate_parameter(1,1)
     print(f"Paramètres estimés Likelihood (mu,c): {estimated_param}")
 
