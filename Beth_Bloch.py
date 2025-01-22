@@ -42,3 +42,4 @@ plt.xscale('log')
 plt.yscale('log')
 plt.grid(True)
 plt.show()
+#gros zizi
