@@ -1,32 +1,36 @@
 import numpy as np
 from scipy.optimize import minimize
+from scipy.stats import landau
 
 class LandoDistribution:
+    # Distribution de Landau de paramètre µ/mu (location) et c (scale)
     def __init__(self, data):
         self.data = np.array(data)
     
-    def log_likelihood(self, theta):
-        # Assuming Lando distribution has a PDF of the form f(x|theta) = theta * exp(-theta * x)
-        # Log-likelihood function: sum(log(f(x|theta))) = sum(log(theta) - theta * x)
-        return np.sum(np.log(theta) - theta * self.data)
+    def log_likelihood(self, param):
+        mu,c = param
+        # Assuming Lando distribution
+        return -(np.sum(np.log(landau.pdf(self.data, loc=mu, scale=c))))
     
-    def negative_log_likelihood(self, theta):
-        # Negative log-likelihood for minimization
-        return -self.log_likelihood(theta)
-    
-    def estimate_parameter(self):
-        # Initial guess for theta
-        initial_theta = 1.0
+    def estimate_parameter(self,init_mu, init_c):
         # Minimize the negative log-likelihood
-        result = minimize(self.negative_log_likelihood, initial_theta, bounds=[(1e-10, None)])
+        param =[init_mu,init_c]
+        result = minimize(self.log_likelihood,param, bounds=[(1e-10, None)])
         if result.success:
-            return result.x[0]
+            return result.x[0], result.x[1] # Return estimated parameter
         else:
-            raise RuntimeError("Optimization failed")
+            raise RuntimeError("Echec")
 
 # Example usage
 if __name__ == "__main__":
-    data = [0.5, 1.2, 0.3, 0.8, 1.5]  # Example data
+    data = []
+    for i in range(100000):
+        data.append(landau.rvs(loc=5, scale=3) )
+    param = landau.fit(data)
+    
+    loc_est, scale_est = param
+    print(f"Paramètres estimés fit: loc = {loc_est:.2f}, scale = {scale_est:.2f}")
+    
     lando_dist = LandoDistribution(data)
-    estimated_theta = lando_dist.estimate_parameter()
-    print(f"Estimated parameter (theta): {estimated_theta}")
+    estimated_param = lando_dist.estimate_parameter(1,1)
+    print(f"Paramètres estimés Likelihood (mu,c): {estimated_param:.2f}")

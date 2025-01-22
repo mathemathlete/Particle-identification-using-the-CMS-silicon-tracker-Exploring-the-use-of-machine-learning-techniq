@@ -19,6 +19,8 @@ x = np.linspace(-10,100, 10000)
 # Calculer la fonction de densité de probabilité (PDF)
 pdf_values = landau.pdf(x, loc=loc, scale=scale)
 
+
+
 # Tracer la PDF
 plt.plot(x, pdf_values, 'r-', lw=2, label='landau pdf')
 plt.title('Fonction de densité de probabilité de la distribution de Landau')
