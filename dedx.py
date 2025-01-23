@@ -20,4 +20,4 @@ with uproot.open("slim_nt_mc_aod_1.root") as file:
 array_dx=data['dedx_pathlength']
 array_de=data['dedx_charge']
 
-print(array_dx[52].sum())
+print(array_dx[52])

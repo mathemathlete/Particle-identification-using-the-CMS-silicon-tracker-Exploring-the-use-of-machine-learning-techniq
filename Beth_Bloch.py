@@ -16,7 +16,7 @@ delta=0. # density correction
 C=0 # Correction term (C/Z)
 R=0.5 # ratio of the atomic number to the atomic mass number (Z/A) (Silicium Z=14, A=28)
 
-Cst_1=K*z**2*R
+Cst_1=K*z**2*R 
 Cst_2=2*m_e/I**2
 
 # Bethe-Bloch formula
