@@ -1,11 +1,11 @@
-import Extraction_tab
+# import Extraction_tab
 import numpy as np
 import matplotlib.pyplot as plt 
 import pandas as pd
 import scipy.constants as cst
 
-data = pd.DataFrame()
-Extraction_tab.import_data(data)
+# data = pd.DataFrame()
+# Extraction_tab.import_data(data)
 
 # Constants
 I=1. # mean exitation energy 
@@ -43,7 +43,7 @@ def bethe_bloch(mass, momentum):
     return  (Cst_1/beta**2)*(np.log(2*m_e*beta**2*gamma**2/I)-beta**2-C-delta/2) # PID M>>2gamma*m_e (heavy_part_2 slide.47)
     
 
-pp = np.linspace(0.01, 100, 10000)  # Momentum in GeV
+pp = np.linspace(0.01, 100, 100000)  # Momentum in GeV
 bethe_bloch_proton_ref = bethe_bloch(m_p, pp)  # Convert momentum to GeV/c
 bethe_bloch_pion_ref = bethe_bloch(m_pion, pp)
 bethe_bloch_kaon_ref = bethe_bloch(m_kaon, pp)
