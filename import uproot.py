@@ -1,5 +1,7 @@
 import uproot
 import pandas as pd
+import numpy as np
+
 
 with uproot.open("slim_nt_mc_aod_1.root") as file:
     key = file.keys()[0] # open the first Ttree
@@ -9,3 +11,4 @@ with uproot.open("slim_nt_mc_aod_1.root") as file:
         #print("\n \n \n \n")
         print(f"Array {array_name}:")
         print(array)
+    
