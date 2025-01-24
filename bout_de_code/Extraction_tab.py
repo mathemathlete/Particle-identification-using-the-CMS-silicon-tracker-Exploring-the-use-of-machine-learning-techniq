@@ -18,4 +18,3 @@ def import_data(data):
                     Nbre.append(len(array[i]))
         data["Number of elements"] = Nbre
     return(data)
-    
