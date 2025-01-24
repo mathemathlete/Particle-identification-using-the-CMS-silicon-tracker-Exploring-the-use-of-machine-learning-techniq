@@ -10,12 +10,11 @@ with uproot.open("slim_nt_mc_aod_992.root") as file:
     tree = file[key]
     data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
    
-print(data)
 array_de=ak.sum(data['dedx_charge'],axis=-1)
 array_dx=ak.sum(data['dedx_pathlength'],axis=-1)
 array_p=data['track_p']
 dedx=array_de/array_dx
-print(array_p)
+print(array_p)  
 
 # plot
 plt.scatter(array_p, dedx)
