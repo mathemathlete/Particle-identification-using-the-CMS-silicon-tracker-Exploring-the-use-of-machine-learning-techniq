@@ -5,7 +5,7 @@ import awkward as ak
 
 branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
 data = pd.DataFrame()
-with uproot.open("slim_nt_mc_aod_992.root") as file:
+with uproot.open("clean_p.root") as file:
     key = file.keys()[0]  # open the first Ttree
     tree = file[key]
     data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
