@@ -1,7 +1,6 @@
 import uproot
 import pandas as pd
 
-
 branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
 
 # Open the ROOT file
