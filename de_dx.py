@@ -1,5 +1,6 @@
 import uproot
 import pandas as pd
+import numpy as np
 import awkward as ak
 
 branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
@@ -12,17 +13,12 @@ with uproot.open("slim_nt_mc_aod_992.root") as file:
     tree = file[key]
     data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
 
-data_filtered = data[data['track_p'] <= 5 ]
+data_filtered = data[data['track_p'] <= 5 ].reset_index(drop=True) #take only particle with momentum less than 5 GeV
 
-dedx=data_filtered['dedx_charge']/data_filtered['dedx_pathlength']
-It=pd.DataFrame()
-# for i in range (len(dedx)):
-#     for j in range (len(dedx[i])):
-#         It[i]=((dedx[i][j])**2)
-#     It[i]=(It[i]/len(dedx[i]))**0.5
-
-print(len(dedx[5][:]))
+data_filtered['dedx_cluster']=data_filtered['dedx_charge']/data_filtered['dedx_pathlength'] #calculate dedx and create a new column
+data_filtered['It'] = np.sqrt(ak.sum(data_filtered['dedx_cluster']**2, axis=-1) / ak.count(data_filtered['dedx_cluster'], axis=-1)) #calculate quadratique mean of dedx along a track
 
 # Save the manipulated DataFrame to a new ROOT file
-with uproot.recreate("clean_p.root") as new_file:
-    new_file["tree_name"] = data_filtered
+
+with uproot.recreate("de_dx.root") as new_file:
+    new_file["tree_name"] = { "It": data_filtered['It'], "track_p": data_filtered['track_p'] }
