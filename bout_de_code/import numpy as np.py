@@ -47,9 +47,10 @@ class Likelihood_landau:
     #     return conv_dirac1 + conv_dirac2
 
     def log_likelihood(self, params, function):
+        epsilon = 1e-10
         # print(-np.sum(np.log(function(*params))))
         """Negative log-likelihood function for estimation"""
-        return -np.sum(np.log(function(*params)))
+        return -np.sum(np.log(function(*params) + epsilon))
 
     def estimate_parameter(self, function, initial_guess):
         """Estimate parameters using maximum likelihood"""
@@ -67,33 +68,47 @@ def generate_convolved_data(loc, scale, gauss_mean, gauss_stddev, Nbre):
     landau_data = np.array([landau.rvs(loc, scale) for _ in range(Nbre)])
     
     # Create Gaussian distribution PDF over the same range
-    gauss_data = np.array([np.random.normal(loc, scale) for _ in range(Nbre)])
+    gauss_data = np.array([np.random.normal(gauss_mean, gauss_stddev) for _ in range(Nbre)])
     
-    # Convolve the Landau data with the Gaussian distribution
-    convolved_data = convolve(landau_data, gauss_data, mode = 'full') 
+    # Sum the Landau data with the Gaussian distribution
+    sum_data = gauss_data + landau_data
     
-    return landau_data, gauss_data, convolved_data
+    return landau_data, gauss_data, sum_data
 
 # Example usage
 loc_th = 3
-scale_th = 3
-gauss_mean = -2
+scale_th = 1
+gauss_mean = 1  
 gauss_stddev = 1
 Nbre = 100000
-xmin = loc_th - 2*scale_th
+xmin = loc_th - 4*scale_th
 xmax = loc_th + 10*scale_th
 
 # Generate the data
-landau_data, gauss_data, convolved_data = generate_convolved_data(loc_th, scale_th, gauss_mean, gauss_stddev, Nbre)
-counts, bin_edges = np.histogram(convolved_data, bins=10, range=(xmin,xmax))
-print(landau_data)
-print(gauss_data)
-print(counts)
-plt.bar(bin_edges[:-1],counts)
-plt.show()
-# land_dic = Likelihood_landau(filtered_convolved_data)
-# estimated_param_conv = land_dic.estimate_parameter(land_dic.landau_conv_gauss, [1, 1, 0, 1])
-# print("Estimated Parameters for landau_conv_gauss:", estimated_param_conv)
+landau_data, gauss_data, sum_data = generate_convolved_data(loc_th, scale_th, gauss_mean, gauss_stddev, Nbre)
+land_dic = Likelihood_landau(sum_data)
+estimated_param_conv = land_dic.estimate_parameter(land_dic.landau_plus_gauss, [1, 1, -1, 1])
+print("Estimated Parameters for landau_plus_gauss:", estimated_param_conv)
+
+x = np.linspace(xmin,xmax,len(sum_data))
+
+bin_edges = np.linspace(xmin, xmax, 100)  
+hist, edges = np.histogram(sum_data, bins=bin_edges, density=True)  # Density = True => Normalisation or not
+bin_centers = (edges[:-1] + edges[1:]) / 2
+
+courbe_th = landau.pdf(x, loc=loc_th, scale=scale_th) + norm.pdf(x,gauss_mean,gauss_stddev)
+courbe_est = landau.pdf(x, loc=estimated_param_conv[0], scale=estimated_param_conv[1]) + norm.pdf(x,estimated_param_conv[2],estimated_param_conv[3])
+
+plt.plot(x, courbe_th, 'r-', lw=2, label='Courbe théorique')
+plt.plot(x, courbe_est, 'k--', lw=2, label='Courbe estimée')
+plt.plot(bin_centers, hist, drawstyle='steps-mid', label='Histogramme à partir des données simulées')
+plt.title('Comparaison entre Simulation et Estimateur')
+plt.xlabel('x')
+plt.ylabel('PDF')
+plt.legend()
+plt.grid(True)
+plt.show()  
+
 
 
 # # Plot the individual Landau and Gaussian distributions

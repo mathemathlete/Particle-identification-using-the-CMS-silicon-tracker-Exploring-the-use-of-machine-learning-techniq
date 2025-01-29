@@ -32,7 +32,6 @@ if __name__ == "__main__":
     for i in range(Nbre):
         data.append(landau.rvs(loc_th, scale_th) )
     param = landau.fit(data)
-    
     loc_est, scale_est = param
     print(f"Paramètres estimés fit: loc = {loc_est:.2f}, scale = {scale_est:.2f}")
     
