@@ -68,7 +68,7 @@ def identification_part(p_dedx):
     else :
         print("Deuteron")
         return m_deut
-        
+
 
 
 def affichage_Bethe_Bloch_borneinfsup():

@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.optimize import minimize
-from scipy.stats import landau
+from scipy.stats import landau, norm
+from scipy.signal import convolve
 import matplotlib.pyplot as plt
 import pandas as pd
 import uproot
@@ -10,24 +11,34 @@ class Likelihood_landau:
     # Distribution de Landau de paramètre µ/mu (location) et c (scale)
     def __init__(self, data):
         self.data = np.array(data)
+
+    # Les fonctions qui suivent sont les fonctions que l'on va chercher à estimer avec le LikeLihood
+    def landau(self,*args):
+        return landau.pdf(self.data, *args)
     
-    def log_likelihood(self, param):
-        mu,c = param
-        # Assuming Landau distribution
-        return -(np.sum(np.log(landau.pdf(self.data, loc=mu, scale=c))))
+    def gauss(self,*args):
+        return norm.pdf(self.data,*args)
     
-    def estimate_parameter(self,init_mu, init_c):
+    def landau_plus_gauss(self,*args):
+        return (self.landau(*args[0:2]) + self.gauss(*args[2:4]))
+    
+    def landau_plus_deux_gauss(self,*args):
+        return (self.landau(*args[0:2]) + self.gauss(*args[2:4]) + self.gauss(*args[4:6]))
+    
+    def landau_conv_gauss(self,*args):
+        return (convolve( self.landau(*args[0:2]),self.gauss(*args[2:4])))
+    
+    def log_likelihood(self,function, *args):
+        # We ask for the function that we want to estimate with the likelihood method
+        return -(np.sum(np.log(function(self.data,*args))))
+    
+    def estimate_parameter(self,*args):
         # Minimize the negative log-likelihood
-        param =[init_mu,init_c]
-        result = minimize(self.log_likelihood,param, bounds=[(1e-10, None)])
+        result = minimize(self.log_likelihood,*args, bounds=[(1e-10, None)])
         if result.success:
             return result.x[0], result.x[1] # Return estimated parameter
         else:
             raise RuntimeError("Echec")
-        
-        
-
-        
 
 if __name__ == "__main__": 
     branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
@@ -57,7 +68,6 @@ if __name__ == "__main__":
     # Number of bins rule (here Freedman-Diaconis (pue sa mère comme règle en fait))
     # taille_bin = 2*(ak.max(dedx)-ak.min(dedx))/(len(dedx)**(1/3))
     # A revoir , en comptant le nbre ça avait pas l'air de marcher
-    dedx = dedx[dedx<5000000]
     taille_bin = 439
     bins = np.arange(300, 43956800,taille_bin)
     data= ak.to_numpy(dedx)

@@ -1,9 +1,8 @@
-# Fichier pour les tests à la con
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize
 from scipy.stats import landau, norm
 from scipy.signal import convolve
+from scipy.optimize import minimize
 
 class Likelihood_landau:
     def __init__(self, data):
@@ -27,7 +26,7 @@ class Likelihood_landau:
     
     def landau_conv_gauss(self, loc, scale, mean, stddev):
         """Convolution of Landau distribution with Gaussian distribution"""
-        return convolve(self.landau(loc, scale), self.gauss(mean, stddev) )
+        return convolve(self.landau(loc, scale), self.gauss(mean, stddev))
     
     # Pr illustrer l'utilisation de convolve
     # def landau_conv_two_diracs(self, *args):
@@ -48,6 +47,7 @@ class Likelihood_landau:
     #     return conv_dirac1 + conv_dirac2
 
     def log_likelihood(self, params, function):
+        # print(-np.sum(np.log(function(*params))))
         """Negative log-likelihood function for estimation"""
         return -np.sum(np.log(function(*params)))
 
@@ -61,41 +61,77 @@ class Likelihood_landau:
     
 
 
-if __name__ == "__main__":
+# Function to generate data convolved with Landau and Gaussian
+def generate_convolved_data(loc, scale, gauss_mean, gauss_stddev, Nbre):
+    # Generate Landau-distributed data
+    landau_data = np.array([landau.rvs(loc, scale) for _ in range(Nbre)])
     
+    # Create Gaussian distribution PDF over the same range
+    gauss_data = np.array([np.random.normal(loc, scale) for _ in range(Nbre)])
     
-    # A= np.linspace(0,10,11)
-    # print(A)
-    # print(A[0:2])
-    # print(A[2:3])
-    # print(A[4:5])
-
-    loc_th = 5
-    scale_th = 3
-    Nbre = 1000
-    data = []
-    x=np.linspace(-10,10,10000)
-    for i in range(Nbre):
-        data.append(landau.rvs(loc_th, scale_th))
-    land_dic = Likelihood_landau(data)
-    # estimated_param = land_dic.estimate_parameter(land_dic.landau, [1,1])  # Using landau
-    # print("Estimated Parameters for landau:", estimated_param)
-
-    # estimated_param_gauss = land_dic.estimate_parameter(land_dic.landau_plus_gauss, [1, 1, 0, 1])
-    # print("Estimated Parameters for landau_plus_gauss:", estimated_param_gauss)
-
-    # # Using landau_plus_deux_gauss
-    # estimated_param_2gauss = land_dic.estimate_parameter(land_dic.landau_plus_deux_gauss, [1, 1, 0, 1, 0, 1])
-    # print("Estimated Parameters for landau_plus_deux_gauss:", estimated_param_2gauss)
+    # Convolve the Landau data with the Gaussian distribution
+    convolved_data = convolve(landau_data, gauss_data, mode = 'full') 
     
-    # Using landau_conv_gauss
-    # estimated_param_conv = land_dic.estimate_parameter(land_dic.landau_conv_gauss, [1, 1, 0, 1])
-    # print("Estimated Parameters for landau_conv_gauss:", estimated_param_conv)
-    
-    # land_dic2= Likelihood_landau(x)
-    # land_dic2.landau(loc_th,scale_th)
-    # A=land_dic2.landau_plus_gauss(0,1,3,1)
-    # # result_conv_two_diracs = land_dic.landau_conv_two_diracs(0, 1, 0, 1, -7, 7)
+    return landau_data, gauss_data, convolved_data
 
-    # plt.plot(x,A)
-    # plt.show()
+# Example usage
+loc_th = 3
+scale_th = 3
+gauss_mean = -2
+gauss_stddev = 1
+Nbre = 100000
+xmin = loc_th - 2*scale_th
+xmax = loc_th + 10*scale_th
+
+# Generate the data
+landau_data, gauss_data, convolved_data = generate_convolved_data(loc_th, scale_th, gauss_mean, gauss_stddev, Nbre)
+counts, bin_edges = np.histogram(convolved_data, bins=10, range=(xmin,xmax))
+print(landau_data)
+print(gauss_data)
+print(counts)
+plt.bar(bin_edges[:-1],counts)
+plt.show()
+# land_dic = Likelihood_landau(filtered_convolved_data)
+# estimated_param_conv = land_dic.estimate_parameter(land_dic.landau_conv_gauss, [1, 1, 0, 1])
+# print("Estimated Parameters for landau_conv_gauss:", estimated_param_conv)
+
+
+# # Plot the individual Landau and Gaussian distributions
+# x_vals = np.linspace(-10, 10, Nbre)
+
+# plt.figure(figsize=(12, 8))
+
+# # Plot Landau Distribution
+# plt.subplot(2, 2, 1)
+# plt.plot(x_vals, landau.pdf(x_vals, loc_th, scale_th), label="Landau PDF")
+# plt.title("Landau Distribution")
+# plt.xlabel("x")
+# plt.ylabel("Density")
+# plt.grid(True)
+
+# # Plot Gaussian Distribution
+# plt.subplot(2, 2, 2)
+# plt.plot(x_vals, gauss_data, label="Gaussian PDF", color='orange')
+# plt.title("Gaussian Distribution")
+# plt.xlabel("x")
+# plt.ylabel("Density")
+# plt.grid(True)
+
+# # Plot Convolved Data
+# plt.subplot(2, 2, 3)
+# plt.hist(filtered_convolved_data, bins=30, density=True, alpha=0.6, color='g', range=(-10, 10))
+# plt.title("Histogram of Convolved Data (Clipped to [-10, 10])")
+# plt.xlabel("Value")
+# plt.ylabel("Density")
+# plt.grid(True)
+
+# # Plot the convolved data PDF for comparison
+# plt.subplot(2, 2, 4)
+# plt.plot(x_vals, convolve(landau.pdf(x_vals, loc_th, scale_th), gauss_data, mode='same'), label="Convolved PDF")
+# plt.title("Convolution of Landau and Gaussian")
+# plt.xlabel("x")
+# plt.ylabel("Density")
+# plt.grid(True)
+
+# plt.tight_layout()
+# plt.show()

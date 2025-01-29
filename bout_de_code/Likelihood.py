@@ -11,6 +11,7 @@ class Likelihood_landau:
     def log_likelihood(self, param):
         mu,c = param
         # Assuming Landau distribution
+        # print(-(np.sum(np.log(landau.pdf(self.data, loc=mu, scale=c)))))
         return -(np.sum(np.log(landau.pdf(self.data, loc=mu, scale=c))))
     
     def estimate_parameter(self,init_mu, init_c):
