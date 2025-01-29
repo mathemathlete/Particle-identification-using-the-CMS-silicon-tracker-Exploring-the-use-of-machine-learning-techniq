@@ -27,18 +27,18 @@ def bethe_bloch(beta, gamma):
     return  (Cst_1/beta**2)*(np.log(2*m_e*beta**2*gamma**2/I)-beta**2-C-delta/2) # PID M>>2gamma*m_e (heavy_part_2 slide.47)
 
 # Range of beta values
-beta = np.linspace(0.1, 0.9999999, 10000)
-gamma = 1 / np.sqrt(1 - beta**2)
-beta_gamma = beta * gamma
-# Calculate dE/dx
-Bethe_Bloch = bethe_bloch(beta,gamma)
+# beta = np.linspace(0.1, 0.9999999, 10000)
+# gamma = 1 / np.sqrt(1 - beta**2)
+# beta_gamma = beta * gamma
+# # Calculate dE/dx
+# Bethe_Bloch = bethe_bloch(beta,gamma)
 
-# Plot
-plt.plot(beta_gamma, Bethe_Bloch)
-plt.xlabel(r'$\beta$$\gamma$')
-plt.ylabel(r'$-\frac{dE}{dx}$ (MeV cm$^2$/g)')
-plt.title('Bethe-Bloch Formula')
-plt.xscale('log')
-plt.yscale('log')
-plt.grid(True)
-plt.show()
+# # Plot
+# plt.plot(beta_gamma, Bethe_Bloch)
+# plt.xlabel(r'$\beta$$\gamma$')
+# plt.ylabel(r'$-\frac{dE}{dx}$ (MeV cm$^2$/g)')
+# plt.title('Bethe-Bloch Formula')
+# plt.xscale('log')
+# plt.yscale('log')
+# plt.grid(True)
+# plt.show()
