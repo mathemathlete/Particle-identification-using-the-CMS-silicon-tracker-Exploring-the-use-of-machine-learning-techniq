@@ -70,14 +70,14 @@ if __name__ == "__main__":
     # print(A[2:3])
     # print(A[4:5])
 
-    loc_th = 5
-    scale_th = 3
-    Nbre = 1000
-    data = []
-    x=np.linspace(-10,10,10000)
-    for i in range(Nbre):
-        data.append(landau.rvs(loc_th, scale_th))
-    land_dic = Likelihood_landau(data)
+    # loc_th = 5
+    # scale_th = 3
+    # Nbre = 1000
+    # data = []
+    # x=np.linspace(-10,10,10000)
+    # for i in range(Nbre):
+    #     data.append(landau.rvs(loc_th, scale_th))
+    # land_dic = Likelihood_landau(data)
     # estimated_param = land_dic.estimate_parameter(land_dic.landau, [1,1])  # Using landau
     # print("Estimated Parameters for landau:", estimated_param)
 
@@ -99,3 +99,30 @@ if __name__ == "__main__":
 
     # plt.plot(x,A)
     # plt.show()
+
+
+    # Exemple de données
+    x = np.random.randn(10000)
+    y = np.random.randn(10000)
+
+    # Création de l'histogramme 2D
+    plt.hist2d(x, y, bins=100, cmap='viridis')
+
+    # Ajouter une courbe (par exemple une courbe gaussienne)
+    x_curve = np.linspace(-4, 4, 100)
+    y_curve = np.exp(-x_curve**2)  # Fonction gaussienne
+    plt.plot(x_curve, y_curve, color='red', label='Courbe gaussienne')
+
+    # Ajouter une légende
+    plt.legend()
+
+    # Ajouter des labels et un titre
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title('Histogramme 2D et Courbe sur le même plot')
+
+    # Ajouter une barre de couleurs
+    plt.colorbar(label='Fréquence')
+
+    # Affichage du graphique
+    plt.show()

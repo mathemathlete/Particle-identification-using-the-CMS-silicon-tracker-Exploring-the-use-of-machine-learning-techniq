@@ -6,26 +6,25 @@ import scipy.constants as cst
 from sympy import symbols, solve
 
 # Constants
-I=173e-9 # mean exitation energy (GeV)
-n=1e23 # electron density (e-/cm^-3)
+I=172 # mean exitation energy (eV)
 epsilon_0 = cst.epsilon_0
-e = cst.e * 1e-9 # GeV
 m_e = 511e3 # electron mass in eV
-c = cst.c * 1e2 # cm/s
 z = 1. # charge of the particle
 pi= np.pi
-K= 0.307075*1e-3 # MeV mol^-1 cm^2 => GeV mol^-1 cm^2
+K= 0.307075 # MeV mol^-1 cm^2
 delta=0. # density correction
 C=0 # Correction term (C/Z)
 R=0.5 # ratio of the atomic number to the atomic mass number (Z/A) (Silicium Z=14, A=28)
+rho = 2.33 # density of the material in g/cm^3
 
-Cst_1=K*z**2*R 
-Cst_2=2*m_e/I**2
 
-m_p = 938e-3# proton mass in GeV
-m_deut = 1875e-3 # deuteron mass in GeV
-m_pion = 139e-3 # pion mass in GeV
-m_kaon = 493e-3 # kaon mass in GeV
+Cst_1=K*(z**2)*R
+Cst_2=2*m_e/(I**2)
+
+m_p = 938e-3# proton mass in eV
+m_deut = 1875e-3 # deuteron mass in eV
+m_pion = 139e-3 # pion mass in eV
+m_kaon = 493e-3 # kaon mass in eV
 
 # seuil_acceptance_proton=200e-3
 # seuil_acceptance_deut=300e-3
@@ -42,7 +41,7 @@ def bethe_bloch(mass, momentum):
     # return (Cst_1/beta**2)*(0.5*np.log(Cst_2*beta**2*gamma**2*Wmax)-beta**2-C-delta/2)
     gamma = (1+(momentum/(mass))**2)**0.5
     beta = momentum/(mass*gamma)
-    return  (Cst_1/beta**2)*(np.log(2*m_e*beta**2*gamma**2/I)-beta**2-C-delta/2) # PID M>>2gamma*m_e (heavy_part_2 slide.47)
+    return  rho*(Cst_1/beta**2)*(np.log(2*m_e*beta**2*gamma**2/I)-beta**2-C-delta/2) # PID M>>2gamma*m_e (heavy_part_2 slide.47)
     
 
 def identification_part(p_dedx):
@@ -98,14 +97,14 @@ def affichage_Bethe_Bloch_borneinfsup():
 
     plt.figure()
 
-    plt.plot(pp,bethe_bloch_lim_deuteron_proton, 'r--',label='dedx_Deuteron+Proton/2')
-    plt.plot(pp,bethe_bloch_lim_proton_kaon, 'g--',label='dedx_Proton+Kaon/2')
-    plt.plot(pp,bethe_bloch_lim_pion_kaon, 'b--',label='dedx_Pion+Kaon/2')
+    # plt.plot(pp,bethe_bloch_lim_deuteron_proton, 'r--',label='dedx_Deuteron+Proton/2')
+    # plt.plot(pp,bethe_bloch_lim_proton_kaon, 'g--',label='dedx_Proton+Kaon/2')
+    # plt.plot(pp,bethe_bloch_lim_pion_kaon, 'b--',label='dedx_Pion+Kaon/2')
 
-    plt.plot(pp,bethe_bloch_proton_ref, 'k', label='dedx_Proton')
+    # plt.plot(pp,bethe_bloch_proton_ref, 'k', label='dedx_Proton')
     plt.plot(pp,bethe_bloch_pion_ref, 'r',label='dedx_Pion')
-    plt.plot(pp,bethe_bloch_kaon_ref,'g', label='dedx_Kaon')
-    plt.plot(pp,bethe_bloch_deuteron_ref,'b', label='dedx_Deuteron')
+    # plt.plot(pp,bethe_bloch_kaon_ref,'g', label='dedx_Kaon')
+    # plt.plot(pp,bethe_bloch_deuteron_ref,'b', label='dedx_Deuteron')
 
     # plt.plot(pp,proton_inf, 'k:', label='Proton_inf')
     # plt.plot(pp,proton_sup, 'r:', label='Proton_sup')
@@ -131,3 +130,4 @@ def affichage_Bethe_Bloch_borneinfsup():
 
 # for i in Particle_id_test:
 #     identification_part(i)
+    
