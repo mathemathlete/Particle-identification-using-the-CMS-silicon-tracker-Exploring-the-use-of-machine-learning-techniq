@@ -6,9 +6,9 @@ import awkward as ak
 branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
 
 # Open the ROOT file
-file = uproot.open("slim_nt_mc_aod_992.root")
+file_name = "tree.root"
 data = pd.DataFrame()
-with uproot.open("slim_nt_mc_aod_992.root") as file:
+with uproot.open(file_name) as file:
     key = file.keys()[0]  # open the first Ttree
     tree = file[key]
     data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
@@ -21,4 +21,4 @@ data_filtered['It'] = np.sqrt(ak.sum(data_filtered['dedx_cluster']**2, axis=-1) 
 # Save the manipulated DataFrame to a new ROOT file
 
 with uproot.recreate("de_dx.root") as new_file:
-    new_file["tree_name"] = { "It": data_filtered['It'], "track_p": data_filtered['track_p'] }
+    new_file["tree_name"] = { "It": data_filtered['It'], "track_p": data_filtered['track_p'], "dedx_cluster" : data_filtered['dedx_cluster']}

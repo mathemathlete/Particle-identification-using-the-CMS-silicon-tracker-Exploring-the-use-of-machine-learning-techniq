@@ -2,35 +2,84 @@ import uproot
 import pandas as pd
 import matplotlib.pyplot as plt
 import sys
-sys.path.append('/bout_de_code')
-import Beth_Bloch as bb
+import Identification as id
 import numpy as np
 
-m_p =  938,272e6 # proton mass in eV
+m_p = 938e-3# proton mass in eV
+m_deut = 1875e-3 # deuteron mass in eV
+m_pion = 139e-3 # pion mass in eV
+m_kaon = 493e-3 # kaon mass in eV
 
-branch_of_interest = ["It", "track_p"]
-data = pd.DataFrame()
-with uproot.open("de_dx.root") as file:
-    key = file.keys()[0]  # open the first Ttree
-    tree = file[key]
-    data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
+mass_limit = 0.789 # determined empirically
+scaling = 1e3 # scaling factor for the Bethe-Bloch curve determined empirically
+
+def preparation_data(file_name, affichage=False):
+    branch_of_interest = ["It", "track_p"]
+    file_name="de_dx.root"
+    data = pd.DataFrame()
+    with uproot.open(file_name) as file:
+        key = file.keys()[0]  # open the first Ttree
+        tree = file[key]
+        data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
+    print(data)
+    data=data[data['It'] <= 12000].reset_index(drop=True) #Premier filtrage sur les données dedx
+    
+    filtred_data = data[(data['It'] >= id.bethe_bloch(mass_limit, data['track_p']) * scaling) & (data['track_p'] < 2)].reset_index(drop=True) #Filtrage du bruit 
+
+
+
+    filtred_p = filtred_data['track_p']
+    filtred_dedx = filtred_data['It']
+
+    if (affichage==True):
+        unfiltred_p = data['track_p']
+        unfiltred_dedx = data['It']
+        return unfiltred_p, unfiltred_dedx, filtred_p, filtred_dedx
+    else :
+        return filtred_p, filtred_dedx
+
+    
     
 
-data=data[data['It'] <= 12000].reset_index(drop=True) 
+def affichage ():
+    p, dedx, p2, dedx2 = preparation_data("de_dx.root", True)
 
-p=data['track_p']
-dedx=data['It']
+    plt.figure(1)
+    p_values = np.logspace(np.log10(0.0001), np.log10(5), 5000)
+    beth_bloch_curve_theory_kaon = id.bethe_bloch(m_kaon, p_values) * scaling
+    beth_bloch_curve_theory_proton = id.bethe_bloch(m_p, p_values) * scaling
+    plt.hist2d(p, dedx, bins=500, cmap='viridis', label='Data')
+    plt.plot(p_values, beth_bloch_curve_theory_kaon, color='red', label='Beth-Bloch theory for Kaon')
+    plt.plot(p_values, beth_bloch_curve_theory_proton, color='green', label='Beth-Bloch theory for proton')
+    Separation = id.bethe_bloch(mass_limit, p_values) * scaling
+    plt.plot(p_values, Separation, color='black', label='Separation')
+    plt.colorbar(label='Counts')
+    plt.xlabel(r'p')
+    plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.title('Bethe-Bloch fit of scale between data and theory')
+    plt.grid(True)
+    plt.legend()
 
-# 2D histogram
-p_values = np.logspace(np.log10(0.000001), np.log10(5), 500)
-beth_bloch_curve = bb.Beth_Bloch(p_values, m_p)
-print(beth_bloch_curve)
-plt.hist2d(p, dedx, bins=150, cmap='viridis')
-plt.plot(p_values, beth_bloch_curve, color='red', label='Beth-Bloch theory')
-plt.colorbar(label='Counts')
-plt.xlabel(r'p')
-plt.ylabel(r'$-\frac{dE}{dx}$)')
-plt.title('Bethe-Bloch Formula')
-plt.grid(True)
-plt.show()
-plt.legend()
+    plt.figure(2)
+    plt.subplot(2, 1, 1)
+    plt.hist2d(p, dedx, bins=500, cmap='viridis')
+    plt.colorbar(label='Counts')
+    plt.xlabel(r'p')
+    plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.title('Unfiltred Data')
+    plt.xlim(0,5)
+    plt.grid(True)
+
+    plt.subplot(2, 1, 2)
+    plt.hist2d(p2, dedx2, bins=500, cmap='viridis')
+    plt.colorbar(label='Counts')
+    plt.xlabel(r'p')
+    plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.title('Filtred Data')
+    plt.grid(True)
+    plt.xlim(0,5)
+
+    plt.show()  
+
+
+affichage()

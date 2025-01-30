@@ -3,15 +3,15 @@ import scipy.constants as cst
 import matplotlib.pyplot as plt
 
 # Constants
-I=1. # mean exitation energy 
-n=1. # electron density
+I=173e-9 # mean exitation energy (GeV)
+n=1e23 # electron density (e-/cm^-3)
 epsilon_0 = cst.epsilon_0
-e = cst.e
+e = cst.e * 1e-9 # GeV
 m_e = 511e3 # electron mass in eV
-c = cst.c
+c = cst.c * 1e2 # cm/s
 z = 1. # charge of the particle
 pi= np.pi
-K= 0.307075 # MeV mol^-1 cm^2
+K= 0.307075*1e-3 # MeV mol^-1 cm^2 => GeV mol^-1 cm^2
 delta=0. # density correction
 C=0 # Correction term (C/Z)
 R=0.5 # ratio of the atomic number to the atomic mass number (Z/A) (Silicium Z=14, A=28)
