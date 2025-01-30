@@ -6,21 +6,20 @@ import scipy.constants as cst
 from sympy import symbols, solve
 
 # Constants
-I=1. # mean exitation energy 
-n=1. # electron density
+I=173e-9 # mean exitation energy (GeV)
+n=1e23 # electron density (e-/cm^-3)
 epsilon_0 = cst.epsilon_0
-e = cst.e
+e = cst.e * 1e-9 # GeV
 m_e = 511e3 # electron mass in eV
-c = cst.c 
+c = cst.c * 1e2 # cm/s
 z = 1. # charge of the particle
 pi= np.pi
-K= 0.307075 # MeV mol^-1 cm^2
+K= 0.307075*1e-3 # MeV mol^-1 cm^2 => GeV mol^-1 cm^2
 delta=0. # density correction
 C=0 # Correction term (C/Z)
 R=0.5 # ratio of the atomic number to the atomic mass number (Z/A) (Silicium Z=14, A=28)
 
-
-Cst_1=K*z**2*R
+Cst_1=K*z**2*R 
 Cst_2=2*m_e/I**2
 
 m_p = 938e-3# proton mass in GeV
@@ -52,19 +51,19 @@ def identification_part(p_dedx):
     p, dedx = p_dedx
     # Identification of a pion
     if (dedx - (( bethe_bloch(m_pion,p) + bethe_bloch(m_kaon,p) )/2) ) <0 :
-        print("Pion")
+        # print("Pion")
         return m_pion
     # Identification of a proton
     elif (dedx - (( bethe_bloch(m_p,p) + bethe_bloch(m_kaon,p) )/2) ) <0 :
-        print("Proton")
+        # print("Proton")
         return m_p
     # Identification of a kaon
     elif (dedx - (( bethe_bloch(m_p,p) + bethe_bloch(m_deut,p) )/2) ) <0 :
-        print("Kaon")
+        # print("Kaon")
         return m_kaon
     # Identification of a deuteron
     else :
-        print("Deuteron")
+        # print("Deuteron")
         return m_deut
 
 
@@ -126,9 +125,9 @@ def affichage_Bethe_Bloch_borneinfsup():
     plt.show()  
 
 ## Partie Verification des données
-affichage_Bethe_Bloch_borneinfsup()
+# affichage_Bethe_Bloch_borneinfsup()
 
-Particle_id_test = [[0.018,60],[0.019,96.9],[0.06,68.4],[0.18,17],[0.11,88.2],[0.43,12.2],[0.21,95.1],[0.71,16.2]]
+# Particle_id_test = [[0.018,60],[0.019,96.9],[0.06,68.4],[0.18,17],[0.11,88.2],[0.43,12.2],[0.21,95.1],[0.71,16.2]]
 
-for i in Particle_id_test:
-    identification_part(i)
+# for i in Particle_id_test:
+#     identification_part(i)
