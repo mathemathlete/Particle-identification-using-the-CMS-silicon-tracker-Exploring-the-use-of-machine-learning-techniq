@@ -5,8 +5,6 @@ import pandas as pd
 import scipy.constants as cst
 from sympy import symbols, solve
 
-# Les Seuils sont définis de manière arbitraire , à revoir éventuellement
-
 # Constants
 I=1. # mean exitation energy 
 n=1. # electron density
