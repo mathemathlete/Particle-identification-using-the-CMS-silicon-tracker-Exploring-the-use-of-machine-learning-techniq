@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import pandas as pd
 import scipy.constants as cst
-from sympy import symbols, solve
 
 # Constants
 I=172 # mean exitation energy (eV)
