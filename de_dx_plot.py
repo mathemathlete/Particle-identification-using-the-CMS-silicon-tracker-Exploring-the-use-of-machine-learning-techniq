@@ -8,20 +8,13 @@ import numpy as np
 
 m_p =  938,272e6 # proton mass in eV
 
-branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
+branch_of_interest = ["It", "track_p"]
 data = pd.DataFrame()
-with uproot.open("clean_p.root") as file:
+with uproot.open("de_dx.root") as file:
     key = file.keys()[0]  # open the first Ttree
     tree = file[key]
     data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
-   
-array_de=ak.sum(data['dedx_charge'],axis=-1)
-array_dx=ak.sum(data['dedx_pathlength'],axis=-1)
-array_p=data['track_p']
-dedx=array_de/array_dx
-print(array_p)  
-
-
+    
 
 data=data[data['It'] <= 12000].reset_index(drop=True) 
 
