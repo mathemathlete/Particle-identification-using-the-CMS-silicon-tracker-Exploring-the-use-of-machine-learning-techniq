@@ -1,0 +1,25 @@
+import torch 
+import uproot 
+import pandas as pd 
+import ML_first as ML
+
+file_name = "ML_training.root"
+data = pd.DataFrame()
+with uproot.open(file_name) as file:
+    key = file.keys()[0]  # open the first Ttree
+    tree = file[key]
+    data = tree.arrays(["dedx_cluster","track_p"], library="pd") # open data with array from numpy
+
+model = ML.MLP(input_size=20)  # Recréer le modèle avec la même architecture
+model.load_state_dict(torch.load("model.pth"))  # Charger les poids
+model.eval()  # Mettre en mode évaluation (désactive dropout, batchnorm, etc.)
+
+new_input = data["dedx_cluster"].to_list()   
+new_input_padded = torch.zeros(1, 20)  # Padding à 20
+new_input_padded[0, :new_input.size(0)] = new_input  # Insérer les valeurs
+
+with torch.no_grad():  # Désactiver la rétropropagation (plus rapide)
+    predicted_value = model(new_input_padded)
+
+print(f"Entrée : {new_input}")
+print(f"Prédiction : {predicted_value.item()}")
