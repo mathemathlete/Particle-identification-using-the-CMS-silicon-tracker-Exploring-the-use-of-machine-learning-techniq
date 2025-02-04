@@ -14,7 +14,7 @@ K= 0.307075 # MeV mol^-1 cm^2
 delta=0. # density correction
 C=0 # Correction term (C/Z)
 R=0.5 # ratio of the atomic number to the atomic mass number (Z/A) (Silicium Z=14, A=28)
-rho = 2.33 # density of the material in g/cm^3
+rho = 2.33 # density of Si in g/cm^3
 
 
 Cst_1=K*(z**2)*R
@@ -29,6 +29,7 @@ m_kaon = 493e-3 # kaon mass in eV
 # seuil_acceptance_deut=300e-3
 # seuil_acceptance_pion=40e-3
 # seuil_acceptance_kaon=100e-3
+
 
 # Bethe-Bloch formula
 def bethe_bloch(mass, momentum):
@@ -96,14 +97,14 @@ def affichage_Bethe_Bloch_borneinfsup():
 
     plt.figure()
 
-    # plt.plot(pp,bethe_bloch_lim_deuteron_proton, 'r--',label='dedx_Deuteron+Proton/2')
-    # plt.plot(pp,bethe_bloch_lim_proton_kaon, 'g--',label='dedx_Proton+Kaon/2')
-    # plt.plot(pp,bethe_bloch_lim_pion_kaon, 'b--',label='dedx_Pion+Kaon/2')
+    plt.plot(pp,bethe_bloch_lim_deuteron_proton, 'r--',label='dedx_Deuteron+Proton/2')
+    plt.plot(pp,bethe_bloch_lim_proton_kaon, 'g--',label='dedx_Proton+Kaon/2')
+    plt.plot(pp,bethe_bloch_lim_pion_kaon, 'b--',label='dedx_Pion+Kaon/2')
 
-    # plt.plot(pp,bethe_bloch_proton_ref, 'k', label='dedx_Proton')
+    plt.plot(pp,bethe_bloch_proton_ref, 'k', label='dedx_Proton')
     plt.plot(pp,bethe_bloch_pion_ref, 'r',label='dedx_Pion')
-    # plt.plot(pp,bethe_bloch_kaon_ref,'g', label='dedx_Kaon')
-    # plt.plot(pp,bethe_bloch_deuteron_ref,'b', label='dedx_Deuteron')
+    plt.plot(pp,bethe_bloch_kaon_ref,'g', label='dedx_Kaon')
+    plt.plot(pp,bethe_bloch_deuteron_ref,'b', label='dedx_Deuteron')
 
     # plt.plot(pp,proton_inf, 'k:', label='Proton_inf')
     # plt.plot(pp,proton_sup, 'r:', label='Proton_sup')

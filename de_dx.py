@@ -20,5 +20,5 @@ data_filtered['It'] = np.sqrt(ak.sum(data_filtered['dedx_cluster']**2, axis=-1) 
 
 # Save the manipulated DataFrame to a new ROOT file
 
-with uproot.recreate("de_dx.root") as new_file:
-    new_file["tree_name"] = { "It": data_filtered['It'], "track_p": data_filtered['track_p'], "dedx_cluster" : data_filtered['dedx_cluster']}
+with uproot.recreate("de_dx2.root") as new_file:
+    new_file["tree_name"] = { "track_p": data_filtered['track_p'], "dedx_cluster" : data_filtered['dedx_cluster']}
