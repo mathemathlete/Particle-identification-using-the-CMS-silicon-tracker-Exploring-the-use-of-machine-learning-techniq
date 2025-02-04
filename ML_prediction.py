@@ -11,7 +11,8 @@ with uproot.open(file_name) as file:
     data = tree.arrays(["dedx_cluster","track_p"], library="pd") # open data with array from numpy
 
 model = ML.MLP(input_size=20)  # Recréer le modèle avec la même architecture
-model.load_state_dict(torch.load("model.pth"))  # Charger les poids
+state_dict = torch.load("model.pth", weights_only=True)  # Charger les poids en mode sécurisé
+model.load_state_dict(state_dict)  # Charger les poids dans le modèle
 model.eval()  # Mettre en mode évaluation (désactive dropout, batchnorm, etc.)
 
 new_input = data["dedx_cluster"].to_list()   

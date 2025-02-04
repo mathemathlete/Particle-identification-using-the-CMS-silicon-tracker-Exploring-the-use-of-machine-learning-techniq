@@ -58,13 +58,12 @@ def collate_fn(batch):
 # --- Préparer les données ---
 
 dedx_values = data["dedx_cluster"].to_list()
-data_th_values = id.bethe_bloch(938e6, data["track_p"]).to_list()  # Targets (valeurs théoriques)
+data_th_values = id.bethe_bloch(938e-3, data["track_p"]).to_list()  # Targets (valeurs théoriques)
 dataset = ParticleDataset(dedx_values, data_th_values)
 dataloader = DataLoader(dataset, batch_size=32, collate_fn=collate_fn, shuffle=True)
 
 
 # --- Initialisation du modèle, fonction de perte et optimiseur ---
-# Le plus grand nombre d'éléments dans un vecteur est 20, donc on fixe la taille d'entrée
 model = MLP(input_size=100)  # Taille fixe (max_len)
 criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -93,7 +92,7 @@ def train_model(model, dataloader, criterion, optimizer, epochs=5):
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {epoch_loss/len(dataloader):.4f}")
 
 # --- Entraînement du modèle ---
-train_model(model, dataloader, criterion, optimizer, epochs=10)
+#train_model(model, dataloader, criterion, optimizer, epochs=10)
 
 # --- Sauvegarde du modèle ---
 torch.save(model.state_dict(), "model.pth")
