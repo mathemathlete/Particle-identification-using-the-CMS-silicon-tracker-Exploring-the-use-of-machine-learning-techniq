@@ -6,6 +6,8 @@ import uproot
 import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
+from sklearn.model_selection import train_test_split
+
 
 # --- Importation des données ---
 file_name = "ML_training.root"
@@ -14,6 +16,7 @@ with uproot.open(file_name) as file:
     key = file.keys()[0]  # open the first Ttree
     tree = file[key]
     data = tree.arrays(["dedx_cluster","track_p"], library="pd") # open data with array from numpy
+    train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
 class ParticleDataset(Dataset):
     def __init__(self, dedx_values, target_values, max_len=30):
@@ -57,8 +60,8 @@ def collate_fn(batch):
 
 # --- Préparer les données ---
 
-dedx_values = data["dedx_cluster"].to_list()
-data_th_values = id.bethe_bloch(938e-3, data["track_p"]).to_list()  # Targets (valeurs théoriques)
+dedx_values = train_data["dedx_cluster"].to_list()
+data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
 dataset = ParticleDataset(dedx_values, data_th_values)
 dataloader = DataLoader(dataset, batch_size=32, collate_fn=collate_fn, shuffle=True)
 
@@ -69,7 +72,7 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # --- Fonction d'entraînement ---
-def train_model(model, dataloader, criterion, optimizer, epochs=5):
+def train_model(model, dataloader, criterion, optimizer, epochs):
     for epoch in range(epochs):
         epoch_loss = 0.0
         for inputs, targets in dataloader:
@@ -95,4 +98,40 @@ def train_model(model, dataloader, criterion, optimizer, epochs=5):
 #train_model(model, dataloader, criterion, optimizer, epochs=10)
 
 # --- Sauvegarde du modèle ---
-torch.save(model.state_dict(), "model.pth")
+#torch.save(model.state_dict(), "model.pth")
+
+# --- Évaluation du modèle ---
+dedx_values_test = test_data["dedx_cluster"].to_list()
+data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
+test_dataset = ParticleDataset(dedx_values_test, data_th_values_test)
+test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
+
+print("Evaluation du modèle...")
+
+predictions = []
+model.eval()  # Mettre le modèle en mode évaluation
+test_loss = 0.0
+with torch.no_grad():  # Désactiver la grad pour l'évaluation
+    for inputs, targets in test_dataloader:
+        inputs_padded = torch.zeros((inputs.size(0), 100))  # Padded to max_len=100
+        for i in range(inputs.size(0)):
+            inputs_padded[i, :inputs[i].size(0)] = inputs[i]  # Remplir avec les données réelles
+        
+        outputs = model(inputs_padded)
+        outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
+        targets = targets.squeeze()  # Ensure targets are 1-dimensional
+        loss = criterion(outputs, targets)
+        test_loss += loss.item()        
+
+
+        if outputs.dim() == 0:
+            predictions.append(outputs.item())
+        else:
+            predictions.extend(outputs.tolist())
+
+        # Affichage des prédictions
+        
+
+print("Prédictions sur le jeu de données de test :")
+print(predictions)
+print(f"Test Loss: {test_loss/len(test_dataloader):.4f}")
