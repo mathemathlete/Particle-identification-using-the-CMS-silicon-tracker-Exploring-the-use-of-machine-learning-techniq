@@ -20,7 +20,7 @@ def filtrage_dedx(file_name, isstrip=False, insideTkmod=False, dedx_clusclean=Fa
     Retourne :
     - Un DataFrame Pandas contenant uniquement les colonnes `dedx_charge` et `dedx_pathlength`, avec les lignes vides supprimées.
     """
-    branch_of_interest = ["dedx_charge", "dedx_pathlength"]
+    branch_of_interest = ["dedx_charge", "dedx_pathlength","track_p"]
     active_filters = []
     if isstrip:
         active_filters.append("dedx_isstrip")
@@ -63,7 +63,7 @@ def filtrage_dedx(file_name, isstrip=False, insideTkmod=False, dedx_clusclean=Fa
         data = data[data["dedx_pathlength"].apply(len) > 0]
 
     # Keep only the `dedx_charge` and `dedx_pathlength` columns
-    data = data[["dedx_charge", "dedx_pathlength"]]
+    data = data[["dedx_charge", "dedx_pathlength","track_p"]]
 
     return data
 
