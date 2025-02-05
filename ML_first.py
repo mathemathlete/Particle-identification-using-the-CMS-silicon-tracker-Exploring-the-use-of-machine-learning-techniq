@@ -7,6 +7,7 @@ import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
 
 # --- Importation des données ---
@@ -17,9 +18,13 @@ with uproot.open(file_name) as file:
     tree = file[key]
     data = tree.arrays(["dedx_cluster","track_p"], library="pd") # open data with array from numpy
     train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
+    # print(len(data))
+    # print(len(train_data))
+    # print(len(test_data))
+    # print(len(train_data) + len(test_data))
 
 class ParticleDataset(Dataset):
-    def __init__(self, dedx_values, target_values, max_len=30):
+    def __init__(self, dedx_values, target_values, max_len=50):
         self.dedx_values = dedx_values
         self.target_values = target_values
         self.max_len = max_len
@@ -95,10 +100,10 @@ def train_model(model, dataloader, criterion, optimizer, epochs):
         print(f"Epoch [{epoch+1}/{epochs}], Loss: {epoch_loss/len(dataloader):.4f}")
 
 # --- Entraînement du modèle ---
-#train_model(model, dataloader, criterion, optimizer, epochs=10)
+train_model(model, dataloader, criterion, optimizer, epochs=10)
 
 # --- Sauvegarde du modèle ---
-#torch.save(model.state_dict(), "model.pth")
+torch.save(model.state_dict(), "model.pth")
 
 # --- Évaluation du modèle ---
 dedx_values_test = test_data["dedx_cluster"].to_list()
@@ -133,5 +138,30 @@ with torch.no_grad():  # Désactiver la grad pour l'évaluation
         
 
 print("Prédictions sur le jeu de données de test :")
-print(predictions)
 print(f"Test Loss: {test_loss/len(test_dataloader):.4f}")
+
+print(predictions)
+print(len(predictions))
+print(len(data_th_values_test))
+
+# --- Création des histogrammes ---
+plt.figure(figsize=(12, 6))
+
+# Histogramme des prédictions
+plt.subplot(1, 2, 1)
+plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
+plt.xlabel('Valeur')
+plt.ylabel('Fréquence')
+plt.title('Histogramme des Prédictions')
+plt.legend()
+
+# Histogramme des valeurs théoriques
+plt.subplot(1, 2, 2)
+plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
+plt.xlabel('Valeur')
+plt.ylabel('Fréquence')
+plt.title('Histogramme des Valeurs Théoriques')
+plt.legend()
+
+plt.tight_layout()
+plt.show()

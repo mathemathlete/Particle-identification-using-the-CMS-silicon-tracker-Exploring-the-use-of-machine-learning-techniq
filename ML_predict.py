@@ -12,7 +12,7 @@ with uproot.open(file_name) as file:
     key = file.keys()[0]  # open the first Ttree
     tree = file[key]
     data = tree.arrays(["dedx_cluster","track_p"], library="pd") # open data with array from numpy
-
+    
 
 def prediction(model, dataloader):
     predictions = []
