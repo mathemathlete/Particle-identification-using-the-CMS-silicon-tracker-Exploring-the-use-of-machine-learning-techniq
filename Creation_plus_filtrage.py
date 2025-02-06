@@ -2,7 +2,18 @@ import uproot
 import pandas as pd
 import awkward as ak
 
-def filtrage_dedx(file_name, isstrip=False, insideTkmod=False, dedx_clusclean=False):
+
+
+
+def import_data(file_name, branch_of_interest):
+    with uproot.open(file_name) as file:
+        key = file.keys()[0]  # open the first Ttree
+        tree = file[key]
+        data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy
+    return data
+
+
+def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=False, dedx_clusclean=False):
     """
     Crée un fichier root en extrayant les branches d'intérêt et en appliquant des filtres optionnels.
 
@@ -20,7 +31,6 @@ def filtrage_dedx(file_name, isstrip=False, insideTkmod=False, dedx_clusclean=Fa
     Retourne :
     - Un DataFrame Pandas contenant uniquement les colonnes `dedx_charge` et `dedx_pathlength`, avec les lignes vides supprimées.
     """
-    branch_of_interest = ["dedx_charge", "dedx_pathlength","track_p"]
     active_filters = []
     if isstrip:
         active_filters.append("dedx_isstrip")
@@ -30,13 +40,7 @@ def filtrage_dedx(file_name, isstrip=False, insideTkmod=False, dedx_clusclean=Fa
         active_filters.append("dedx_clusclean")
     branch_of_interest.extend(active_filters)
 
-    with uproot.open(file_name) as file:
-        key = file.keys()[0] 
-        tree = file[key]
-
-        # Chargement des données sous forme de DataFrame Pandas
-        data = tree.arrays(branch_of_interest, library="pd")
-
+    data=import_data(file_name, branch_of_interest)
     # Déterminer les indices des colonnes utilisées pour le filtrage
 
     if active_filters:
@@ -67,7 +71,14 @@ def filtrage_dedx(file_name, isstrip=False, insideTkmod=False, dedx_clusclean=Fa
 
     return data
 
+
+
+
+
 if __name__ == "__main__":
+        
+    branch_of_interest = ["dedx_charge", "dedx_pathlength","track_p"]
+   
     ## Test to debug (reminder : reduce the amount of data with the empty_stop parameter line )
     # Example usage (sans filtre)
     A = filtrage_dedx("tree.root")
