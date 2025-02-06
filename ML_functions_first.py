@@ -9,8 +9,8 @@ from torch.nn.utils.rnn import pad_sequence
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
-file_name = "Root_files/ML_training.root"
 
+file_name = "Root_files/ML_training.root"
 class ParticleDataset(Dataset):
     def __init__(self, dedx_values, target_values, max_len=100):
         self.dedx_values = dedx_values
@@ -23,9 +23,36 @@ class ParticleDataset(Dataset):
     def __getitem__(self, idx):
         x = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
         y = torch.tensor(self.target_values[idx], dtype=torch.float32)
-
         return x, y
 
+class LSTMModel(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, output_size):
+        super(LSTMModel, self).__init__()
+
+        # LSTM layer
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        
+        # Fully connected layer (for classification or regression)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        # x shape: (batch_size, sequence_length, input_size)
+        
+        # Initialize hidden and cell states (h_0, c_0)
+        h_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)  # (num_layers, batch, hidden_size)
+        c_0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+
+        # Forward pass through LSTM
+        out, _ = self.lstm(x, (h_0, c_0))  # out: (batch, seq_len, hidden_size)
+
+        # Use the output at the last time step
+        out = out[:, -1, :]  # Select last time step
+
+        # Pass through the fully connected layer
+        out = self.fc(out)  # (batch, output_size)
+        
+        return out
+    
 # --- Définir le modèle de réseau de neurones ---
 class MLP(nn.Module):
     def __init__(self, input_size, hidden_size=64):
@@ -39,17 +66,18 @@ class MLP(nn.Module):
         x = self.fc2(x)
         return x
     
-def collate_fn(batch):
-    inputs, targets = zip(*batch)  # Sépare les entrées et les cibles
+    
+    def collate_fn(batch):
+        inputs, targets = zip(*batch)  # Sépare les entrées et les cibles
 
-    # Convertir en tensors
-    inputs = [x.clone().detach().float() for x in inputs]
-    targets = torch.tensor(targets, dtype=torch.float32)
+        # Convertir en tensors
+        inputs = [x.clone().detach().float() for x in inputs]
+        targets = torch.tensor(targets, dtype=torch.float32)
 
-    # Padding des entrées pour qu'elles aient toutes une taille de `max_len`
-    inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0)
+        # Padding des entrées pour qu'elles aient toutes une taille de `max_len`
+        inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0)
 
-    return inputs_padded, targets
+        return inputs_padded, targets
 
 def train_model(model, dataloader, criterion, optimizer, epochs=20):
     for epoch in range(epochs):
@@ -104,7 +132,7 @@ def test_model(model, dataloader, criterion,max_len):
 
 
 if __name__ == "__main__":
-    # --- Importation des données ---
+    # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     max_len=100
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
