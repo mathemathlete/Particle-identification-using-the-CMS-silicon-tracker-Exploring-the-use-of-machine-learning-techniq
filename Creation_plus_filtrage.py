@@ -67,11 +67,12 @@ def filtrage_dedx(file_name, isstrip=False, insideTkmod=False, dedx_clusclean=Fa
 
     return data
 
-## Test to debug (reminder : reduce the amount of data with the empty_stop parameter line )
-# Example usage (sans filtre)
-A = filtrage_dedx("tree.root")
-print(A)
+if __name__ == "__main__":
+    ## Test to debug (reminder : reduce the amount of data with the empty_stop parameter line )
+    # Example usage (sans filtre)
+    A = filtrage_dedx("tree.root")
+    print(A)
 
-# Example usage 2 (avec filtre)
-A = filtrage_dedx("tree.root",True,False,True)
-print(A)
+    # Example usage 2 (avec filtre)
+    A = filtrage_dedx("tree.root",True,False,True)
+    print(A)

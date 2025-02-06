@@ -65,7 +65,6 @@ def collate_fn(batch):
     return inputs_padded, targets
 
 # --- Préparer les données ---
-
 dedx_values = train_data["dedx_cluster"].to_list()
 data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
 p_values = test_data["track_p"].to_list()
@@ -129,11 +128,11 @@ def train_model2(model, dataloader, criterion, optimizer, epochs=20):
                 # print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
 
-# # --- Entraînement du modèle ---
-# train_model2(model, dataloader, criterion, optimizer, epochs=10)
+# --- Entraînement du modèle ---
+train_model2(model, dataloader, criterion, optimizer, epochs=10)
 
-# # --- Sauvegarde du modèle ---
-# torch.save(model.state_dict(), "model.pth")
+# --- Sauvegarde du modèle ---
+torch.save(model.state_dict(), "model.pth")
 
 
 # model=MLP(input_size=100)
