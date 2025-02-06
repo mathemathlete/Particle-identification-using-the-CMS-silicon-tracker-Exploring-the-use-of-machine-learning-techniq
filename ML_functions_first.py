@@ -64,6 +64,7 @@ class MLP(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.fc2(x)
         return x
+    
 def collate_fn(batch):
     inputs, targets = zip(*batch)  # Sépare les entrées et les cibles
 
