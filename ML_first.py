@@ -13,7 +13,7 @@ import numpy as np
 
 
 # --- Importation des données ---
-file_name = "ML_sf.root"
+file_name = "ML_training_1.2.root"
 data = pd.DataFrame()
 data_out = pd.DataFrame()
 with uproot.open(file_name) as file:
@@ -132,7 +132,7 @@ def train_model2(model, dataloader, criterion, optimizer, epochs=20):
 
 
 # # --- Entraînement du modèle ---
-# train_model2(model, dataloader, criterion, optimizer, epochs=10)
+train_model2(model, dataloader, criterion, optimizer, epochs=10)
 
 # # --- Sauvegarde du modèle ---
 # torch.save(model.state_dict(), "model.pth")

@@ -6,7 +6,7 @@ import Identification as id
 
 def plot(data, hist, dev):
     
-    data=cpf.import_data(data)
+    data=cpf.import_data(data, branch_of_interest)
     np_th= np.array(id.bethe_bloch(938e-3,data['track_p']))
     np_pr = np.array(data['dedx'])
 
@@ -32,7 +32,8 @@ def plot(data, hist, dev):
 
         plt.tight_layout()
 
-   
+
+
     if dev==True:
     # --- Comparaison des prédictions et des valeurs théoriques ---
         plt.figure(figsize=(8, 8))
@@ -45,8 +46,10 @@ def plot(data, hist, dev):
         p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
         plt.figure(figsize=(8, 8))
         plt.hist2d(data['track_p'],np_pr,bins=500, cmap='viridis', label='Data')
-        plt.plot(p_axis,np_th,color='red')
+        plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
         plt.xscale('log')
         plt.show()
 
 
+branch_of_interest = ["dedx","track_p"]
+plot("ML_out.root",True,True)
