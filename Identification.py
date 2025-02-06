@@ -123,11 +123,12 @@ def affichage_Bethe_Bloch_borneinfsup():
     plt.grid(True)
     plt.show()  
 
-## Partie Verification des données
-# affichage_Bethe_Bloch_borneinfsup()
+if __name__ == "__main__":
+    # Partie Verification des données
+    affichage_Bethe_Bloch_borneinfsup()
 
-# Particle_id_test = [[0.018,60],[0.019,96.9],[0.06,68.4],[0.18,17],[0.11,88.2],[0.43,12.2],[0.21,95.1],[0.71,16.2]]
+    Particle_id_test = [[0.018,60],[0.019,96.9],[0.06,68.4],[0.18,17],[0.11,88.2],[0.43,12.2],[0.21,95.1],[0.71,16.2]]
 
-# for i in Particle_id_test:
-#     identification_part(i)
-    
+    for i in Particle_id_test:
+        identification_part(i)
+        

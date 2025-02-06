@@ -81,5 +81,5 @@ def affichage ():
 
     plt.show()  
 
-
-affichage()
+if __name__ == "__main__":
+    affichage()

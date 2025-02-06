@@ -11,11 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-
 # --- Importation des données ---
-file_name = "ML_sf.root"
+file_name = "ML_training.root"
 data = pd.DataFrame()
-data_out = pd.DataFrame()
 with uproot.open(file_name) as file:
     key = file.keys()[0]  # open the first Ttree
     tree = file[key]
@@ -67,13 +65,12 @@ def collate_fn(batch):
     return inputs_padded, targets
 
 # --- Préparer les données ---
-
 dedx_values = train_data["dedx_cluster"].to_list()
 data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
 p_values = test_data["track_p"].to_list()
 dataset = ParticleDataset(dedx_values, data_th_values)
 dataloader = DataLoader(dataset, batch_size=32, collate_fn=collate_fn, shuffle=True)
-data_out["track_p"] = p_values
+
 
 # --- Initialisation du modèle, fonction de perte et optimiseur ---
 model = MLP(input_size=100)  # Taille fixe (max_len)
@@ -131,11 +128,11 @@ def train_model2(model, dataloader, criterion, optimizer, epochs=20):
                 # print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
 
-# # --- Entraînement du modèle ---
-# train_model2(model, dataloader, criterion, optimizer, epochs=10)
+# --- Entraînement du modèle ---
+train_model2(model, dataloader, criterion, optimizer, epochs=10)
 
-# # --- Sauvegarde du modèle ---
-# torch.save(model.state_dict(), "model.pth")
+# --- Sauvegarde du modèle ---
+torch.save(model.state_dict(), "model.pth")
 
 
 # model=MLP(input_size=100)
@@ -171,13 +168,50 @@ with torch.no_grad():  # Désactiver la grad pour l'évaluation
             predictions.extend(outputs.tolist())
 
         # Affichage des prédictions
+        
 
 print("Prédictions sur le jeu de données de test :")
 print(f"Test Loss: {test_loss/len(test_dataloader):.4f}")
-data_out["predictions"] = predictions
-with uproot.recreate("ML_out.root") as new_file:
-        new_file["tree_name"] = { "dedx": data_out["predictions"], "track_p": data_out['track_p'] }
 
 # print(predictions)
 # print(len(predictions))
 # print(len(data_th_values_test))
+
+# --- Création des histogrammes ---
+plt.figure(figsize=(12, 6))
+
+# Histogramme des prédictions
+plt.subplot(1, 2, 1)
+plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
+plt.xlabel('Valeur')
+plt.ylabel('N')
+plt.title('Histogramme des Prédictions')
+plt.legend()
+
+# Histogramme des valeurs théoriques
+plt.subplot(1, 2, 2)
+plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
+plt.xlabel('Valeur')
+plt.ylabel('N')
+plt.title('Histogramme des Valeurs Théoriques')
+plt.legend()
+
+plt.tight_layout()
+
+np_th= np.array(targets)
+np_pr = np.array(predictions)
+
+# --- Comparaison des prédictions et des valeurs théoriques ---
+plt.figure(figsize=(8, 8))
+plt.hist2d(p_values, np_pr-np_th, bins=500, cmap='viridis', label='Data')
+plt.xlabel('Valeur')
+plt.ylabel('th-exp')
+plt.title('Ecart entre théorique et prédite')
+plt.legend()
+
+p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
+plt.figure(figsize=(8, 8))
+plt.hist2d(p_values,np_pr,bins=500, cmap='viridis', label='Data')
+plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
+plt.xscale('log')
+plt.show()
