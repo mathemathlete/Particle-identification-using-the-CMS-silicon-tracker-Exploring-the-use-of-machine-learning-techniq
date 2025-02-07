@@ -131,7 +131,7 @@ def test_model(model, dataloader, criterion,max_len):
 
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
-    file_name = "Root_files/ML_training.root"
+    file_name = "Root_files/ML_training_1.2.root"
     max_len=100
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
