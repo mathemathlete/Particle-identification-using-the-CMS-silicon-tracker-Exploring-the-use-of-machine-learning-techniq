@@ -104,7 +104,7 @@ def train_model(model, dataloader, criterion, optimizer, epochs=20):
                 print(f"loss: {loss:>7f} ({percentage:.2f}%)")
 
 def test_model(model, dataloader, criterion,max_len):
-    predictions = np.array()
+    predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
     test_loss = 0.0
     with torch.no_grad():  # Désactiver la grad pour l'évaluation
