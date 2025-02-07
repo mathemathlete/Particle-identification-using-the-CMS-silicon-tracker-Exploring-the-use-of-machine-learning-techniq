@@ -104,7 +104,7 @@ def train_model(model, dataloader, criterion, optimizer, epochs=20):
                 print(f"loss: {loss:>7f} ({percentage:.2f}%)")
 
 def test_model(model, dataloader, criterion,max_len):
-    predictions = np.array()
+    predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
     test_loss = 0.0
     with torch.no_grad():  # Désactiver la grad pour l'évaluation
@@ -131,7 +131,7 @@ def test_model(model, dataloader, criterion,max_len):
 
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
-    file_name = "Root_files/ML_training.root"
+    file_name = "Root_files/ML_training_1.2.root"
     max_len=100
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
