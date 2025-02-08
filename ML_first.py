@@ -7,13 +7,12 @@ import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-import numpy as np
+
 
 
 
 # --- Importation des données ---
-file_name = "ML_training_1.2.root"
+file_name = "Root_files\ML_training_1.2.root"
 data = pd.DataFrame()
 data_out = pd.DataFrame()
 with uproot.open(file_name) as file:

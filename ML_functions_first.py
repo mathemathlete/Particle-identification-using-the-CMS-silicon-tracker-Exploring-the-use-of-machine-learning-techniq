@@ -167,8 +167,7 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), "model.pth")
     # model=MLP(input_size=100)
     state_dict = torch.load('model.pth',weights_only=True)  
-
-
+    
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
     predictions ,targets, test_loss = test_model(model, test_dataloader, criterion,max_len)
@@ -211,3 +210,10 @@ if __name__ == "__main__":
     plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
     plt.xscale('log')
     plt.show()
+
+
+    data_out=pd.DataFrame()
+    data_out["track_p"]=p_values
+    data_out["dedx"]=np_pr
+    with uproot.recreate("ML_out.root") as new_file:
+        new_file["tree_name"] = { "dedx": data_out["dedx"], "track_p": data_out['track_p'] }
