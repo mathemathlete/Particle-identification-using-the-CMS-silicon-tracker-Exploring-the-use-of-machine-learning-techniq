@@ -33,7 +33,7 @@ def plot(data_test,data_Ih, hist, hist_2):
         plt.show()
 
     if hist_2==True:
-        plt.figure(figsize=(12, 6))
+        plt.figure(1, figsize=(12, 6))
         plt.subplot(2,2,1)
         plt.hist2d(data_Ih['track_p'],data_Ih['Ih'],bins=500,  cmap='viridis', label='Data')
         plt.subplot(2,2,2)
@@ -43,5 +43,4 @@ def plot(data_test,data_Ih, hist, hist_2):
         plt.show()
 
 
-print(len(data_test['dedx']),len(data_Ih['Ih']),len(data_test['track_p']))
 plot(data_test,data_Ih,True,True)
