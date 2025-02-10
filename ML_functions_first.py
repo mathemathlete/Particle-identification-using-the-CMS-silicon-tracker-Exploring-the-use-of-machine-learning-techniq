@@ -217,3 +217,5 @@ if __name__ == "__main__":
     data_out["dedx"]=np_pr
     with uproot.recreate("ML_out.root") as new_file:
         new_file["tree_name"] = { "dedx": data_out["dedx"], "track_p": data_out['track_p'] }
+    with uproot.recreate("ML_in.root") as new_file:
+        new_file["tree_name"] = { "dedx_cluster": test_data["dedx_cluster"], "track_p": test_data['track_p'] }
