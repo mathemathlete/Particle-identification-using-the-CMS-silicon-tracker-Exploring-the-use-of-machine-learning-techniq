@@ -3,6 +3,7 @@ import numpy as np
 import Creation_plus_filtrage as cpf
 import Identification as id
 import awkward as ak
+import seaborn as sns
 
 
 def plot_ML(path_ML,branch_of_interest, hist,hist_2, dev):
@@ -90,15 +91,28 @@ def plot_diff_Ih(path_test,path_Ih, hist, hist_2):
         plt.tight_layout()
 
     if hist_2==True:
+
+        density_Ih = np.sort(data_Ih['Ih'])
+        cumulative_density = np.cumsum(density_Ih) / np.sum(density_Ih)
+        threshold_Ih = density_Ih[np.searchsorted(cumulative_density, 0.9)]  # Trouver la densité qui couvre 90%
+        contour_level = np.mean(density_Ih >= threshold_Ih)
+
+        density_ML = np.sort(data_test['dedx'])
+        cumulative_density_2 = np.cumsum(density_ML) / np.sum(density_ML)
+        threshold_ML = density_ML[np.searchsorted(cumulative_density_2, 0.9)]  # Trouver la densité qui couvre 90%
+        contour_level_2 = np.mean(density_ML >= threshold_ML)
+
         plt.figure(2, figsize=(12, 6))
         plt.subplot(2,2,1)
         plt.hist2d(data_Ih['track_p'],data_Ih['Ih'],bins=500,  cmap='viridis', label='Data')
+        sns.kdeplot(x=data_Ih['track_p'], y=data_Ih['Ih'], levels=[contour_level], colors="red", linewidths=2)
         plt.xlabel('p in GeV/c')
         plt.ylabel(r'$-(\frac{dE}{dx}$)')
         plt.title('Beth-Bloch recontruction with Ih formula')
         plt.legend()
         plt.subplot(2,2,2)
         plt.hist2d(data_test['track_p'],data_test['dedx'],bins=500,  cmap='viridis', label='Data')
+        sns.kdeplot(x=data_Ih['track_p'], y=data_Ih['Ih'], levels=[contour_level_2], colors="red", linewidths=2)
         plt.xlabel('p in GeV/c')
         plt.ylabel(r'$-(\frac{dE}{dx}$)')
         plt.title('Beth-Bloch recontruction with Machine Learning')
@@ -116,7 +130,7 @@ if __name__ == "__main__":
     # parameter for ML_plot
     branch_of_interest = ["dedx","track_p"]
     path_ML='ML_out.root'
-    plot_ML(path_ML, branch_of_interest, True, False, True)
+    #plot_ML(path_ML, branch_of_interest, True, False, True)
 
 
 
@@ -125,4 +139,4 @@ if __name__ == "__main__":
     branch_of_interest_2 = ['dedx','track_p']
     path_Ih="ML_in.root"
     path_test='ML_out.root'
-    #plot_diff_Ih(path_test,path_Ih,True,True)
+    plot_diff_Ih(path_test,path_Ih,False,True)
