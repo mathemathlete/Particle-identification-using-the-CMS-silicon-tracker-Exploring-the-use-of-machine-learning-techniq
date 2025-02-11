@@ -112,7 +112,7 @@ def plot_diff_Ih(path_test,path_Ih, hist, hist_2):
         plt.legend()
         plt.subplot(2,2,2)
         plt.hist2d(data_test['track_p'],data_test['dedx'],bins=500,  cmap='viridis', label='Data')
-        sns.kdeplot(x=data_Ih['track_p'], y=data_Ih['Ih'], levels=[contour_level_2], colors="red", linewidths=2)
+        sns.kdeplot(x=data_test['track_p'], y=data_test['dedx'], levels=[contour_level_2], colors="red", linewidths=2)
         plt.xlabel('p in GeV/c')
         plt.ylabel(r'$-(\frac{dE}{dx}$)')
         plt.title('Beth-Bloch recontruction with Machine Learning')
