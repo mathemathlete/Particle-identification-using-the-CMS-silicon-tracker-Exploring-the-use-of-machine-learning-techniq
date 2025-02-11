@@ -13,24 +13,25 @@ import torch.nn.utils.rnn as rnn_utils
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 
 class ParticleDataset(Dataset):
-    def __init__(self, dedx_values, target_values, p_values,eta_values,I_h_values,):
+    def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,I_h_values):
+        self.ndedx_cluster = ndedx_cluster
         self.dedx_values = dedx_values
         self.target_values = target_values
-        # self.p_values = p_values
-        # self.eta_values = eta_values
-        # self.I_h_values = I_h_values
+        self.p_values = p_values
+        self.eta_values = eta_values
+        self.I_h_values = I_h_values
 
     def __len__(self):
         return len(self.dedx_values)
 
     def __getitem__(self, idx):
-        x = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
-        y = torch.tensor(self.target_values[idx], dtype=torch.float32)
-        # z = torch.tensor(self.p_values[idx], dtype=torch.float32)
-        # t = torch.tensor(self.eta_values[idx], dtype=torch.float32)
-        # o = torch.tensor(self.I_h_values[idx], dtype=torch.float32)
-        # return x, y, z , t , o 
-        return x, y
+        x = torch.tensor(self.ndedx_cluster[idx],dtype=torch.float32)
+        y = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
+        z = torch.tensor(self.target_values[idx], dtype=torch.float32)
+        t = torch.tensor(self.p_values[idx], dtype=torch.float32)
+        u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
+        o = torch.tensor(self.I_h_values[idx], dtype=torch.float32)
+        return x, y, z , t , u, o 
     
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers):
@@ -40,38 +41,47 @@ class LSTMModel(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x, lengths):
-        # Pack the padded sequences (ignores padding in computations)
-        packed_x = pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+        # Trier les séquences en fonction de la longueur (obligatoire pour pack_padded_sequence)
+        lengths, perm_idx = lengths.sort(descending=True)
+        x = x[perm_idx]
 
-        # LSTM processing
+        # Pack des séquences avant passage dans le LSTM
+        packed_x = pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=True)
+
+        # Passage dans le LSTM
         packed_out, (h_n, c_n) = self.lstm(packed_x)
 
-        # Unpack the sequence
+        # Dépacker la séquence
         out, _ = pad_packed_sequence(packed_out, batch_first=True)
 
-        # Take the last valid output (using lengths)
+        # Restaurer l'ordre initial
+        _, inv_perm_idx = perm_idx.sort()
+        out = out[inv_perm_idx]
+
+        # Récupération des derniers états utiles (avec les longueurs)
         last_outputs = out[torch.arange(out.size(0)), lengths - 1]
 
-        # Pass through the fully connected layer
+        # Passage dans la couche fully connected
         output = self.fc(self.relu(last_outputs))
         return output
-
-def collate_fn(batch):
-    inputs, targets = zip(*batch)
-
-    # Convert input lists to tensors
-    inputs = [torch.tensor(x, dtype=torch.float32) for x in inputs]
     
-    # Compute sequence lengths before padding
+def collate_fn(batch):
+    inputs, targets = zip(*batch)  # Séparer les features et les labels
+
+    # Convertir les entrées en tenseurs (si ce n’est pas déjà fait)
+    inputs = [torch.tensor(seq, dtype=torch.float32) for seq in inputs]
+
+    # Longueurs des séquences
     lengths = torch.tensor([len(seq) for seq in inputs], dtype=torch.int64)
 
-    # Pad sequences to the same length
-    inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0)
+    # Padding des séquences
+    inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0) 
 
-    # Convert targets to tensor
-    targets = torch.tensor(targets, dtype=torch.float32)
+    # Conversion des targets en tenseur
+    targets = torch.stack(targets)
 
     return inputs_padded, lengths, targets
+
 
 def train_model(model, dataloader, criterion, optimizer, epochs=20):
     size = len(dataloader.dataset)
@@ -115,7 +125,7 @@ def test_model(model, dataloader, criterion,max_len):
 
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
-    file_name = "Root_files/ML_training.root"
+    file_name = "Root_files/ML_training_1.2.root"
     max_len=100
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
@@ -128,13 +138,13 @@ if __name__ == "__main__":
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
     p_values = test_data["track_p"].to_list()
-    dataset = ParticleDataset(dedx_values, data_th_values,None,None,None)
-    dataloader = DataLoader(dataset, batch_size=32, collate_fn=collate_fn, shuffle=True)
+    dataset = ParticleDataset(None, dedx_values, data_th_values,None,None,None)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=False, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
-    test_dataset = ParticleDataset(dedx_values_test, data_th_values_test,None,None,None)
+    test_dataset = ParticleDataset(None,dedx_values_test, data_th_values_test,None,None,None)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
@@ -142,7 +152,7 @@ if __name__ == "__main__":
     hidden_size = 128
     num_layers = 3
     model = LSTMModel(input_size, hidden_size, num_layers,) 
-    criterion = nn.MSELoss()
+    criterion = nn.MSELoss() # Grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
