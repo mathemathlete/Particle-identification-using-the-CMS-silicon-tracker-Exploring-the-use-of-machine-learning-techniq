@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 def import_data(data):
-    file_name = "Root_Files/tree.root"
+    file_name = "Root_Files/ML_training_1.2.root"
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
         tree = file[key]

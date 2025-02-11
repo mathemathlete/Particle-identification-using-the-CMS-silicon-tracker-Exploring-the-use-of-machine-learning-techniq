@@ -147,8 +147,5 @@ if __name__ == "__main__":
     branch_of_interest_2 = ['dedx','track_p']
     path_Ih="ML_in.root"
     path_test='ML_out.root'
-<<<<<<< HEAD
     plot_diff_Ih(path_test,path_Ih,True,True)
-=======
     plot_diff_Ih(path_test,path_Ih,False,True)
->>>>>>> e806be58169dce057d6eb99d913accf5c8c9910d
