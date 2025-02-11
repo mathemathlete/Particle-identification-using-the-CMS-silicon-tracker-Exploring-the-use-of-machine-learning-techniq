@@ -13,24 +13,25 @@ import torch.nn.utils.rnn as rnn_utils
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 
 class ParticleDataset(Dataset):
-    def __init__(self, dedx_values, target_values, p_values,eta_values,I_h_values,):
-        self.dedx_values = dedx_values
-        self.target_values = target_values
-        # self.p_values = p_values
-        # self.eta_values = eta_values
-        # self.I_h_values = I_h_values
+    def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,I_h_values):
+        self.ndedx_cluster = ndedx_cluster # int
+        self.dedx_values = dedx_values # dedx values is an array of a variable size
+        self.target_values = target_values # int
+        self.p_values = p_values # float
+        self.eta_values = eta_values # float
+        self.I_h_values = I_h_values # float 
 
     def __len__(self):
         return len(self.dedx_values)
 
     def __getitem__(self, idx):
-        x = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
-        y = torch.tensor(self.target_values[idx], dtype=torch.float32)
-        # z = torch.tensor(self.p_values[idx], dtype=torch.float32)
-        # t = torch.tensor(self.eta_values[idx], dtype=torch.float32)
-        # o = torch.tensor(self.I_h_values[idx], dtype=torch.float32)
-        # return x, y, z , t , o 
-        return x, y
+        x = torch.tensor(self.ndedx_cluster[idx],dtype=torch.float32)
+        y = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
+        z = torch.tensor(self.target_values[idx], dtype=torch.float32)
+        t = torch.tensor(self.p_values[idx], dtype=torch.float32)
+        u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
+        o = torch.tensor(self.I_h_values[idx], dtype=torch.float32)
+        return x, y, z , t , u, o 
     
 class LSTMModel(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers):
@@ -40,38 +41,51 @@ class LSTMModel(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x, lengths):
-        # Pack the padded sequences (ignores padding in computations)
-        packed_x = pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=False)
+        # Trier les séquences en fonction de la longueur (obligatoire pour pack_padded_sequence)
+        lengths, perm_idx = lengths.sort(descending=True)
+        x = x[perm_idx]
 
-        # LSTM processing
+        # Pack des séquences avant passage dans le LSTM
+        packed_x = pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=True)
+
+        # Passage dans le LSTM
         packed_out, (h_n, c_n) = self.lstm(packed_x)
 
-        # Unpack the sequence
+        # Dépacker la séquence
         out, _ = pad_packed_sequence(packed_out, batch_first=True)
 
-        # Take the last valid output (using lengths)
+        # Restaurer l'ordre initial
+        _, inv_perm_idx = perm_idx.sort()
+        out = out[inv_perm_idx]
+
+        # Récupération des derniers états utiles (avec les longueurs)
         last_outputs = out[torch.arange(out.size(0)), lengths - 1]
 
-        # Pass through the fully connected layer
+        # Passage dans la couche fully connected
         output = self.fc(self.relu(last_outputs))
         return output
-
-def collate_fn(batch):
-    inputs, targets = zip(*batch)
-
-    # Convert input lists to tensors
-    inputs = [torch.tensor(x, dtype=torch.float32) for x in inputs]
     
-    # Compute sequence lengths before padding
-    lengths = torch.tensor([len(seq) for seq in inputs], dtype=torch.int64)
-
-    # Pad sequences to the same length
-    inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0)
-
-    # Convert targets to tensor
-    targets = torch.tensor(targets, dtype=torch.float32)
-
-    return inputs_padded, lengths, targets
+def collate_fn(batch):
+    # Unpack all items from each sample
+    ndedx_list, dedx_list, target_list, p_list, eta_list, I_h_list = zip(*batch)
+    
+    # For each sample, create the augmented sequence
+    augmented_sequences = []
+    for ndedx, dedx_seq, p, eta, I_h in zip(ndedx_list, dedx_list, p_list, eta_list, I_h_list):
+        # Ensure dedx_seq is a tensor of shape (L, 1)
+        seq_tensor = torch.tensor(dedx_seq, dtype=torch.float32).unsqueeze(-1)
+        # Create extra features tensor of shape (L, 4)
+        extras_tensor = torch.tensor([ndedx, p, eta, I_h], dtype=torch.float32).unsqueeze(0).repeat(seq_tensor.size(0), 1)
+        # Concatenate along feature dimension -> shape: (L, 1+4)
+        augmented_seq = torch.cat([seq_tensor, extras_tensor], dim=1)
+        augmented_sequences.append(augmented_seq)
+    
+    lengths = torch.tensor([seq.size(0) for seq in augmented_sequences], dtype=torch.int64)
+    # Pad the augmented sequences (each of shape (L, 4)) to shape (batch, max_seq_length, 5)
+    sequences_padded = pad_sequence(augmented_sequences, batch_first=True, padding_value=0)
+    
+    targets = torch.stack([torch.tensor(t, dtype=torch.float32) for t in target_list])
+    return sequences_padded, lengths, targets
 
 def train_model(model, dataloader, criterion, optimizer, epochs=20):
     size = len(dataloader.dataset)
@@ -92,7 +106,7 @@ def train_model(model, dataloader, criterion, optimizer, epochs=20):
                 percentage = (current / size) * 100
                 print(f"loss: {loss:>7f} ({percentage:.2f}%)")
 
-def test_model(model, dataloader, criterion,max_len):
+def test_model(model, dataloader, criterion):
     predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
     test_loss = 0.0
@@ -115,34 +129,40 @@ def test_model(model, dataloader, criterion,max_len):
 
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
-    file_name = "Root_files/ML_training.root"
-    max_len=100
+    file_name = "Root_files/ML_training_1.2.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
         tree = file[key]
-        data = tree.arrays(["dedx_cluster","track_p"], library="pd") # open data with array from numpy
+        data = tree.arrays(["ndedx_cluster","dedx_cluster","track_p","track_eta","I_h"], library="pd") # open data with array from numpy
         train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
     # --- Préparer les données de l'entrainement ---
+    ndedx_values_train = train_data["ndedx_cluster"].to_list()
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
-    p_values = test_data["track_p"].to_list()
-    dataset = ParticleDataset(dedx_values, data_th_values,None,None,None)
-    dataloader = DataLoader(dataset, batch_size=32, collate_fn=collate_fn, shuffle=True)
+    p_values_train = train_data["track_p"].to_list()
+    eta_values_train =  train_data["track_eta"].to_list()
+    I_h_values_train = train_data["I_h"].to_list()
+    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,I_h_values_train)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
+    ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
-    test_dataset = ParticleDataset(dedx_values_test, data_th_values_test,None,None,None)
+    p_values_test = test_data["track_p"].to_list()
+    eta_values_test =  test_data["track_eta"].to_list()
+    I_h_values_test = test_data["I_h"].to_list()
+    test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,I_h_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
-    input_size = 50
+    input_size = 4
     hidden_size = 128
     num_layers = 3
     model = LSTMModel(input_size, hidden_size, num_layers,) 
-    criterion = nn.MSELoss()
+    criterion = nn.MSELoss() # Grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
@@ -157,7 +177,7 @@ if __name__ == "__main__":
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion,max_len)
+    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
 
 
     # --- Création des histogrammes ---
