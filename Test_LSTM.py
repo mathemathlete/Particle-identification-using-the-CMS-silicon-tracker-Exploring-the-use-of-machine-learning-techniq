@@ -205,7 +205,7 @@ if __name__ == "__main__":
 
     # --- Comparaison des prédictions et des valeurs théoriques ---
     plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values, np_pr-np_th, bins=500, cmap='viridis', label='Data')
+    plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
     plt.xlabel('Valeur')
     plt.ylabel('th-exp')
     plt.title('Ecart entre théorique et prédite')
@@ -213,7 +213,7 @@ if __name__ == "__main__":
 
     p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
     plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values,np_pr,bins=500, cmap='viridis', label='Data')
+    plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
     plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
     plt.xscale('log')
     plt.show()
