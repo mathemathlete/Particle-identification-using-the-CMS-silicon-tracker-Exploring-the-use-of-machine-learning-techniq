@@ -4,7 +4,7 @@ import Creation_plus_filtrage as cpf
 import Identification as id
 import awkward as ak
 import seaborn as sns
-
+from scipy.spatial.distance import mahalanobis, cdist
 
 def plot_ML(path_ML,branch_of_interest, hist,hist_2, dev):
     
@@ -125,6 +125,51 @@ def plot_diff_Ih(path_test,path_Ih, hist, hist_2):
         plt.tight_layout()
         plt.show()
 
+def dist_Mahalanobis (path,branch_of_interest):   
+    data_brut=cpf.import_data(path, branch_of_interest)
+    data = np.column_stack((data_brut['track_p'], data_brut['dedx']))
+    mean_vec = np.mean(data, axis=0)
+    cov_matrix = np.cov(data, rowvar=False)
+    inv_cov_matrix = np.linalg.inv(cov_matrix)
+    # distance calculation 
+    distances = np.array([mahalanobis(x, mean_vec, inv_cov_matrix) for x in data])
+    threshold = np.percentile(distances, 97)
+    outliers = data[distances > threshold]
+    # plot data and outelier
+    plt.figure(figsize=(8, 6))
+    plt.hist2d(data_brut['track_p'], data_brut['dedx'], bins=500, cmap="viridis")
+    plt.scatter(outliers[:, 0], outliers[:, 1], color='red', label='Outliers détectés', marker='X', edgecolors='black')
+    plt.axhline(y=mean_vec[1], color='k', linestyle='--', alpha=0.5)
+    plt.axvline(x=mean_vec[0], color='k', linestyle='--', alpha=0.5)
+    plt.colorbar(label='Density of point')
+    plt.title("Détection des Outliers avec la Distance de Mahalanobis (Hist2D)")
+    plt.xlabel("X values")
+    plt.ylabel("Y values")
+    plt.legend()
+    plt.show()
+
+
+
+def dispertion_indication(path,branch_of_interest):
+
+    data_brut=cpf.import_data(path, branch_of_interest)
+    data = np.column_stack((data_brut['track_p'], data_brut['dedx']))
+    mean_vec = np.mean(data, axis=0)
+    cov_matrix = np.cov(data, rowvar=False)
+    inv_cov_matrix = np.linalg.inv(cov_matrix)
+    det_cov = np.linalg.det(cov_matrix)
+    mean_point = np.mean(data, axis=0)
+   
+
+    distances = np.array([mahalanobis(x, mean_vec, inv_cov_matrix) for x in data])
+    threshold = np.percentile(distances, 97)
+    outliers = data[distances > threshold]
+
+    distances_to_mean = cdist(outliers, mean_point.reshape(1, -1), metric='euclidean')
+    mean_distance = np.mean(distances_to_mean)
+
+    return det_cov, mean_distance
+
 
 if __name__ == "__main__":
     # parameter for ML_plot
@@ -139,4 +184,6 @@ if __name__ == "__main__":
     branch_of_interest_2 = ['dedx','track_p']
     path_Ih="ML_in.root"
     path_test='ML_out.root'
-    plot_diff_Ih(path_test,path_Ih,True,True)
+    #plot_diff_Ih(path_test,path_Ih,True,True)
+    
+    print(dispertion_indication(path_test,branch_of_interest))

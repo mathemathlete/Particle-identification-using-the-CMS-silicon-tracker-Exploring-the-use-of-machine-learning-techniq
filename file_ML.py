@@ -29,4 +29,4 @@ def preparation_data(file_in,file_out,branch_of_interest):
     with uproot.recreate(file_out) as new_file:
         new_file["tree_name"] = { "dedx_cluster": data_filtered['dedx_cluster'], "track_p": data_filtered['track_p'],'Ih':data_filtered['Ih'], 'track_eta': data_filtered['track_eta']  }
 
-preparation_data("tree.root","ML_training_1.2.root",branch_of_interest_LSTM)
+preparation_data("Root_files/tree.root","Root_files/ML_training_1.2.root",branch_of_interest_LSTM)
