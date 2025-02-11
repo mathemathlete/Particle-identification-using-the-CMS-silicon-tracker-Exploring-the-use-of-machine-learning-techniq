@@ -73,12 +73,12 @@ def plot_diff_Ih(path_test,path_Ih, hist, hist_2):
 
     data_Ih=cpf.import_data(path_Ih, branch_of_interest_1)
     data_test=cpf.import_data(path_test, branch_of_interest_2)
-    data_Ih['Ih'] = np.sqrt(ak.sum(data_Ih['dedx_cluster']**2, axis=-1) / ak.count(data_Ih['dedx_cluster'], axis=-1)) #calculate quadratique mean of dedx along a track
+    data_Ih['Ih'] = np.sqrt(ak.sum(data_Ih['dedx_cluster']**2, axis=-1) / ak.count(data_Ih['dedx_cluster'], axis=-1) ) * 1e-3 #calculate quadratique mean of dedx along a track
     if hist==True:
         plt.figure(1,figsize=(12, 6))
         plt.subplot(1,2,1)
         plt.hist(data_Ih['Ih']-data_test['dedx'], bins=100, alpha=0.7, label='Ih-dedx')
-        plt.xlabel('difference between Ih and dedx')
+        plt.xlabel('difference between Ih and dedx')    
         plt.ylabel('N')
         plt.title('Histogram of difference between Ih and dedx')
         plt.legend()
@@ -130,7 +130,7 @@ if __name__ == "__main__":
     # parameter for ML_plot
     branch_of_interest = ["dedx","track_p"]
     path_ML='ML_out.root'
-    #plot_ML(path_ML, branch_of_interest, True, False, True)
+    # plot_ML(path_ML, branch_of_interest, True, False, True)
 
 
 
@@ -139,4 +139,4 @@ if __name__ == "__main__":
     branch_of_interest_2 = ['dedx','track_p']
     path_Ih="ML_in.root"
     path_test='ML_out.root'
-    plot_diff_Ih(path_test,path_Ih,False,True)
+    plot_diff_Ih(path_test,path_Ih,True,True)

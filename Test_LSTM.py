@@ -9,7 +9,6 @@ from torch.nn.utils.rnn import pad_sequence
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
-import torch.nn.utils.rnn as rnn_utils
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 
 class ParticleDataset(Dataset):
@@ -96,7 +95,6 @@ def train_model(model, dataloader, criterion, optimizer, epochs=20):
         for batch, (inputs, lengths, targets) in enumerate(dataloader):  # Expect 3 values
             outputs = model(inputs, lengths)  # Pass both inputs and lengths to the model
             loss = criterion(outputs.squeeze(), targets)
-
             # Backpropagation
             loss.backward()
             optimizer.step()
@@ -158,7 +156,7 @@ if __name__ == "__main__":
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
-    input_size = 4
+    input_size = 5
     hidden_size = 128
     num_layers = 3
     model = LSTMModel(input_size, hidden_size, num_layers,) 
