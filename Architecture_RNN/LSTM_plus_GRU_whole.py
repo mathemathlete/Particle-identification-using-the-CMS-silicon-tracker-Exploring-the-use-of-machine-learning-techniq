@@ -35,47 +35,100 @@ class ParticleDataset(Dataset):
 class LSTMModel(nn.Module):
     def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers):
         super(LSTMModel, self).__init__()
+        # GRU for the dedx branch.
         self.dedx_rnn = nn.GRU(
-            input_size=1, 
+            input_size=40,             # Max Size of the trace deposit 
             hidden_size=dedx_hidden_size,
             num_layers=dedx_num_layers,
             batch_first=True,
-            dropout=0.1 if dedx_num_layers > 1 else 0.0
+            dropout=0.1  # Dropout applies only if num_layers > 1
         )
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
         self.dropout_dedx = nn.Dropout(0.4)
         
+        # LSTM for the adjustment branch.
+        # It will process a vector of dimension 5: dedx prediction (1) concatenated with extras (4).
         self.adjust_lstm = nn.LSTM(
             input_size=5,
             hidden_size=lstm_hidden_size,
             num_layers=lstm_num_layers,
             batch_first=True,
-            dropout=0.1 if lstm_num_layers > 1 else 0.0
+            dropout=0.1
         )
         self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
+        
         self.relu = nn.ReLU()
-        self.adjustment_scale = 0.2
+        # Scaling factor to give a slight influence to the adjustment.
+        self.adjustment_scale = 0.1
 
     def forward(self, dedx_seq, lengths, extras):
-        packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
-        packed_out, hidden = self.dedx_rnn(packed_seq)
-        hidden_last = hidden[-1]
-        dedx_pred = self.dedx_fc(self.dropout_dedx(hidden_last))
+        """
+        Parameters:
+          - dedx_seq: Tensor of shape (batch, 1, 40)
+          - lengths: Tensor of sequence lengths
+          - extras: Tensor of extra features of shape (batch, 4)
+        Returns:
+          - output: Scalar prediction for each sample, shape (batch, 1)
+        """
+        # --- dedx Branch ---
+        # GRU expects (batch, seq_len, input_size), but our input is already one full vector per sample.
+        # So we pass it directly without packing.
+        packed_out, hidden = self.dedx_rnn(dedx_seq)  # No need for pack_padded_sequence
+
+        # hidden is of shape (num_layers, batch, dedx_hidden_size); we use the last layer.
+        hidden_last = hidden[-1]  # (batch, dedx_hidden_size)
+        dedx_pred = self.dedx_fc(self.dropout_dedx(hidden_last))  # (batch, 1)
         
-        lstm_input = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
-        lstm_out, (h_n, c_n) = self.adjust_lstm(lstm_input)
+        # --- Adjustment Branch ---
+        # Concatenate dedx prediction with extras: shape becomes (batch, 5)
+        lstm_input = torch.cat([dedx_pred, extras], dim=1)
+        # Unsqueeze to add a time dimension: (batch, 1, 5)
+        lstm_input_seq = lstm_input.unsqueeze(1)
+        lstm_out, (h_n, c_n) = self.adjust_lstm(lstm_input_seq)
+        # Use the last layer's hidden state: shape (batch, lstm_hidden_size)
         lstm_hidden = h_n[-1]
-        adjustment = self.adjust_fc(lstm_hidden)
+        adjustment = self.adjust_fc(lstm_hidden)  # (batch, 1)
         
-        return dedx_pred + self.adjustment_scale * adjustment
+        # Final output: dedx prediction plus a scaled adjustment.
+        output = dedx_pred + self.adjustment_scale * adjustment  # (batch, 1)
+        return output
+
 
 def collate_fn(batch):
+    """
+    Processes dedx_values as a full vector, rather than a time sequence.
+    """
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
-    lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
-    padded_sequences = pad_sequence([d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) for d in dedx_list], batch_first=True)
-    extras = torch.stack([torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32) for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)])
+    
+    max_length = 40  # Fixed dedx array length.
+    processed = []
+    for d in dedx_list:
+        d = d.clone().detach().float()
+        if d.size(0) < max_length:
+            # Pad with zeros.
+            padding = torch.zeros(max_length - d.size(0))
+            d_padded = torch.cat([d, padding])
+        else:
+            # Truncate if necessary.
+            d_padded = d[:max_length]
+        processed.append(d_padded)
+    
+    # Stack and then unsqueeze to get shape (batch, 1, 40)
+    sequences = torch.stack(processed)         # (batch, 40)
+    sequences = sequences.unsqueeze(1)           # (batch, 1, 40)
+    # Since each sample is now one full vector, lengths are no longer needed.
+    
+    # Process extra features: we combine ndedx, p, eta, Ih to form a vector of 4 features per sample.
+    extras = torch.stack([
+        torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32)
+        for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)
+    ])
+    
+    # Targets as a tensor.
     targets = torch.tensor(target_list, dtype=torch.float32)
-    return padded_sequences, lengths, targets, extras
+    
+    return sequences, None, targets, extras  # No need for lengths anymore.
+
 
 def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
     size = len(dataloader.dataset)
@@ -165,7 +218,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     
     # Learning rate scheduler: reduce LR on plateau
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.1)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3,  factor=0.1)
     
 
     # --- Entraînement du modèle ---
