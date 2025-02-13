@@ -148,6 +148,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
             optimizer.step()
             optimizer.zero_grad()
 
+            epoch_loss += loss.item()
             if batch % 100 == 0:
                 loss, current = loss.item(), batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
@@ -223,11 +224,11 @@ if __name__ == "__main__":
 
     # --- Entraînement du modèle ---
     train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
-    # torch.save(model.state_dict(), "model.pth")
+    torch.save(model.state_dict(), "model_LSTM_plus_GRU_whole.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
-    # model=MLP(input_size=100)
-    # state_dict = torch.load('model.pth',weights_only=True)  
+    
+    # state_dict = torch.load('model.pth',weights_only=True)
 
 
     # --- Évaluation du modèle ---

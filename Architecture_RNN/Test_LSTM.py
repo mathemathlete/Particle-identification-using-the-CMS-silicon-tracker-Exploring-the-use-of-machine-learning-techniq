@@ -5,11 +5,11 @@ import pandas as pd
 import uproot
 import Identification as id
 from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pad_sequence
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
+import timeit
+from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence, pad_packed_sequence
 
 class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
@@ -31,74 +31,53 @@ class ParticleDataset(Dataset):
         u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
         o = torch.tensor(self.Ih_values[idx], dtype=torch.float32)
         return x, y, z , t , u, o 
-    
+
 class LSTMModel(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers):
+    def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers):
         super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.3)
-        self.extra_fc = nn.Linear(4, hidden_size)
-        self.fusion_fc = nn.Linear(hidden_size * 2, 64)
-        self.out_fc = nn.Linear(64, 1)
+        self.dedx_rnn = nn.GRU(
+            input_size=1, 
+            hidden_size=dedx_hidden_size,
+            num_layers=dedx_num_layers,
+            batch_first=True,
+            dropout=0.1 if dedx_num_layers > 1 else 0.0
+        )
+        self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
+        self.dropout_dedx = nn.Dropout(0.4)
+        
+        self.adjust_lstm = nn.LSTM(
+            input_size=5,
+            hidden_size=lstm_hidden_size,
+            num_layers=lstm_num_layers,
+            batch_first=True,
+            dropout=0.1 if lstm_num_layers > 1 else 0.0
+        )
+        self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(0.3)
+        self.adjustment_scale = 0.2
 
-    def forward(self, x, lengths, extras):
-        """
-        x: Tensor of shape (batch_size, seq_length, 1) - dedx values sequence
-        lengths: Tensor of shape (batch_size,) - actual sequence lengths
-        extras: Tensor of shape (batch_size, 4) - extra parameters (ndedx, p, eta, Ih)
-        """
-        # Sort sequences by length for packing
-        lengths, perm_idx = lengths.sort(descending=True)
-        x = x[perm_idx]
-        extras = extras[perm_idx]
+    def forward(self, dedx_seq, lengths, extras):
+        packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
+        packed_out, hidden = self.dedx_rnn(packed_seq)
+        hidden_last = hidden[-1]
+        dedx_pred = self.dedx_fc(self.dropout_dedx(hidden_last))
+        
+        lstm_input = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
+        lstm_out, (h_n, c_n) = self.adjust_lstm(lstm_input)
+        lstm_hidden = h_n[-1]
+        adjustment = self.adjust_fc(lstm_hidden)
+        
+        return dedx_pred + self.adjustment_scale * adjustment
 
-        # Pack the padded sequence and pass it through the LSTM
-        packed_x = pack_padded_sequence(x, lengths.cpu(), batch_first=True, enforce_sorted=True)
-        packed_out, (h_n, c_n) = self.lstm(packed_x)
-        # Unpack the output
-        out, _ = pad_packed_sequence(packed_out, batch_first=True)
-        # Extract the last valid hidden state for each sample
-        last_outputs = out[torch.arange(out.size(0)), lengths - 1]
-
-        # Process extra features
-        extras_processed = self.relu(self.extra_fc(extras))
-        # Concatenate LSTM output with processed extras
-        fusion = torch.cat([last_outputs, extras_processed], dim=1)
-        # Pass through the fusion layer
-        fusion = self.relu(self.fusion_fc(fusion))
-        fusion = self.dropout(fusion)
-        # Final output layer to predict the target
-        output = self.out_fc(fusion)
-        # Restore original order
-        _, inv_perm_idx = perm_idx.sort()
-        output = output[inv_perm_idx]
-        return output.squeeze(-1) 
-
-    
 def collate_fn(batch):
-    # Unpack all items from each sample
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
-
-    # Convert dedx_values sequences to tensors (variable lengths)
-    dedx_tensors = [d.clone().detach().unsqueeze(-1) for d in dedx_list]
-
-    # Compute sequence lengths
-    lengths = torch.tensor([seq.size(0) for seq in dedx_tensors], dtype=torch.int64)
-
-    # Pad sequences to max length in batch
-    sequences_padded = pad_sequence(dedx_tensors, batch_first=True, padding_value=0)
-
-    # Convert extra features to a tensor (batch_size, 4)
-    extras = torch.stack([torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32) 
-                          for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)])
-
-    # Convert targets to tensor
+    lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
+    padded_sequences = pad_sequence([d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) for d in dedx_list], batch_first=True)
+    extras = torch.stack([torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32) for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)])
     targets = torch.tensor(target_list, dtype=torch.float32)
+    return padded_sequences, lengths, targets, extras
 
-    return sequences_padded, lengths, targets, extras
-
-def train_model(model, dataloader, criterion, optimizer,scheduler, epochs=20):
+def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
     for epoch in range(epochs):
@@ -110,8 +89,7 @@ def train_model(model, dataloader, criterion, optimizer,scheduler, epochs=20):
             outputs = outputs.squeeze()
             targets = targets.squeeze()
             loss = criterion(outputs, targets)
-            
-            
+
             # Backpropagation
             loss.backward()
             optimizer.step()
@@ -122,11 +100,9 @@ def train_model(model, dataloader, criterion, optimizer,scheduler, epochs=20):
                 loss, current = loss.item(), batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
                 print(f"loss: {loss:>7f} ({percentage:.2f}%)")
-
         scheduler.step(epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
-
-
+        
 def test_model(model, dataloader, criterion):
     predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
@@ -147,9 +123,9 @@ def test_model(model, dataloader, criterion):
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, targets, test_loss
 
-
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
+    time_start = timeit.default_timer()
     file_name = "ML_training_LSTM.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
@@ -179,23 +155,25 @@ if __name__ == "__main__":
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
-    input_size = 1
-    hidden_size = 64
-    num_layers = 2
-    model = LSTMModel(input_size, hidden_size, num_layers) 
-    criterion = nn.MSELoss() # Si pas une grosse influence des outliers
+    dedx_hidden_size = 128
+    dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
+    lstm_hidden_size = 64
+    lstm_num_layers = 2
+
+    model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
+    criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     
     # Learning rate scheduler: reduce LR on plateau
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5, verbose=True)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.1)
     
 
     # --- Entraînement du modèle ---
-    train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20)
+    train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
     # torch.save(model.state_dict(), "model.pth")
 
-    # --- Sauvegarde du modèle ---
+    # --- Sauvegarde et Chargement du modèle ---
     # model=MLP(input_size=100)
     # state_dict = torch.load('model.pth',weights_only=True)  
 
@@ -204,6 +182,8 @@ if __name__ == "__main__":
     print("Evaluation du modèle...")
     predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
 
+    time_end = timeit.default_timer()
+    print(f"Temps d'execution : {time_end - time_start}")
 
     # --- Création des histogrammes ---
     plt.figure(figsize=(12, 6))

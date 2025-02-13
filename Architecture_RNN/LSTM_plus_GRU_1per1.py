@@ -15,7 +15,7 @@ class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
         self.ndedx_cluster = ndedx_cluster # int
         self.dedx_values = dedx_values # dedx values is an array of a variable size
-        self.target_values = target_values # int
+        self.target_values = target_values # int        
         self.p_values = p_values # float
         self.eta_values = eta_values # float
         self.Ih_values = Ih_values # float 
@@ -89,12 +89,13 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
             outputs = outputs.squeeze()
             targets = targets.squeeze()
             loss = criterion(outputs, targets)
-
             # Backpropagation
+
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
 
+            epoch_loss += loss.item()
             if batch % 100 == 0:
                 loss, current = loss.item(), batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
@@ -170,12 +171,10 @@ if __name__ == "__main__":
 
     # --- Entraînement du modèle ---
     train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
-    # torch.save(model.state_dict(), "model.pth")
+    torch.save(model.state_dict(), "model_LSTM_plus_GRU_1per1.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
-    # model=MLP(input_size=100)
-    # state_dict = torch.load('model.pth',weights_only=True)  
-
+    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
@@ -192,6 +191,8 @@ if __name__ == "__main__":
     plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
     plt.xlabel('Valeur')
     plt.ylabel('N')
+    plt.xlim(4,10)
+    plt.ylim(0, 2000)
     plt.title('Histogramme des Prédictions')
     plt.legend()
 
@@ -201,6 +202,8 @@ if __name__ == "__main__":
     plt.xlabel('Valeur')
     plt.ylabel('N')
     plt.title('Histogramme des Valeurs Théoriques')
+    plt.xlim(4,10)
+    plt.ylim(0, 2000)
     plt.legend()
     plt.tight_layout()
 

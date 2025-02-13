@@ -134,6 +134,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
             targets = targets.squeeze()         # shape: (batch,)
             loss = criterion(outputs, targets)
             
+            
             # Backpropagation
             loss.backward()
             optimizer.step()
@@ -146,6 +147,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
                 print(f"loss: {loss.item():>7f} ({percentage:.2f}%)")
             
         scheduler.step(epoch_loss)
+        print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
 
 def test_model(model, dataloader, criterion):
     predictions = []

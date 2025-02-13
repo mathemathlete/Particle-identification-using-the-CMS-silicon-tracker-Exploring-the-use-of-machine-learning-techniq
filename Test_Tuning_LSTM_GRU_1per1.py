@@ -9,13 +9,17 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
 import timeit
-from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
+import ray
+from ray import tune
+from ray.tune.schedulers import ASHAScheduler
+from ray.tune.search.optuna import OptunaSearch
 
 class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
         self.ndedx_cluster = ndedx_cluster # int
         self.dedx_values = dedx_values # dedx values is an array of a variable size
-        self.target_values = target_values # int
+        self.target_values = target_values # int        
         self.p_values = p_values # float
         self.eta_values = eta_values # float
         self.Ih_values = Ih_values # float 
@@ -33,34 +37,33 @@ class ParticleDataset(Dataset):
         return x, y, z , t , u, o 
 
 class LSTMModel(nn.Module):
-    def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers):
+    def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers,adjustement_scale, dropout_GRU, dropout_LSTM):
         super(LSTMModel, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
             hidden_size=dedx_hidden_size,
             num_layers=dedx_num_layers,
             batch_first=True,
-            dropout=0.1 if dedx_num_layers > 1 else 0.0
+            dropout=dropout_GRU if dedx_num_layers > 1 else 0.0
         )
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
-        self.dropout_dedx = nn.Dropout(0.4)
         
         self.adjust_lstm = nn.LSTM(
             input_size=5,
             hidden_size=lstm_hidden_size,
             num_layers=lstm_num_layers,
             batch_first=True,
-            dropout=0.1 if lstm_num_layers > 1 else 0.0
+            dropout=dropout_LSTM if lstm_num_layers > 1 else 0.0
         )
         self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
         self.relu = nn.ReLU()
-        self.adjustment_scale = 0.2
+        self.adjustment_scale = adjustement_scale
 
     def forward(self, dedx_seq, lengths, extras):
         packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, hidden = self.dedx_rnn(packed_seq)
         hidden_last = hidden[-1]
-        dedx_pred = self.dedx_fc(self.dropout_dedx(hidden_last))
+        dedx_pred = self.dedx_fc(hidden_last)
         
         lstm_input = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
         lstm_out, (h_n, c_n) = self.adjust_lstm(lstm_input)
@@ -95,6 +98,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
             optimizer.step()
             optimizer.zero_grad()
 
+            epoch_loss += loss.item()
             if batch % 100 == 0:
                 loss, current = loss.item(), batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
@@ -121,6 +125,43 @@ def test_model(model, dataloader, criterion):
     print("Prédictions sur le jeu de données de test :")
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, targets, test_loss
+
+def train_model_ray(config  , checkpoint_dir=None):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    model = LSTMModel(
+        dedx_hidden_size=config["dedx_hidden_size"],
+        dedx_num_layers=config["dedx_num_layers"],
+        lstm_hidden_size=config["lstm_hidden_size"],
+        lstm_num_layers=config["lstm_num_layers"],
+        adjustement_scale=config["adjustment_scale"],
+        dropout_GRU=config["dropout_GRU"],
+        dropout_LSTM=config["dropout_LSTM"]
+    ).to(device)
+    
+    criterion = nn.HuberLoss()
+    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=config["decrease_factor_scheduler"])
+    
+    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values, p_values_train, eta_values_train, Ih_values_train)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
+    
+    for epoch in range(20):
+        model.train()
+        total_loss = 0.0
+
+        for inputs, lengths, targets, extras in dataloader:
+            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs, lengths, extras).squeeze()
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+
+        avg_loss = total_loss / len(dataloader)
+        scheduler.step(avg_loss)
+        tune.report(loss=avg_loss)
 
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
@@ -153,33 +194,70 @@ if __name__ == "__main__":
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
-    # --- Initialisation du modèle, fonction de perte et optimiseur ---
+    # --- Initialisation des hyperparamètres ---
     dedx_hidden_size = 128
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
     lstm_hidden_size = 64
     lstm_num_layers = 2
+    adjustement_scale = 0.2
+    initial_weight_decay = 1e-5
+    initial_learning_rate = 0.001
+    decrease_factor_scheduler = 0.1
+    dropout_GRU = 0.4
+    dropout_LSTM = 0.1
 
-    model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
-    criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
-    # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
-    
-    # Learning rate scheduler: reduce LR on plateau
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.1)
-    
 
-    # --- Entraînement du modèle ---
-    train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
-    # torch.save(model.state_dict(), "model.pth")
+    search_space = {
+        "dedx_hidden_size": tune.choice([64, 128, 256]),
+        "dedx_num_layers": tune.choice([1, 2, 3]),
+        "lstm_hidden_size": tune.choice([32, 64, 128]),
+        "lstm_num_layers": tune.choice([1, 2, 3]),
+        "adjustment_scale": tune.uniform(0.1, 1.0),
+        "dropout_GRU": tune.uniform(0.1, 0.5),
+        "dropout_LSTM": tune.uniform(0.1, 0.5),
+        "learning_rate": tune.loguniform(1e-4, 1e-2),
+        "weight_decay": tune.loguniform(1e-6, 1e-3),
+        "decrease_factor_scheduler" : tune.choice([0.5,0.1])
+    }
+    
+    ray.init(ignore_reinit_error=True)
+
+    analysis = tune.run(
+        train_model_ray,
+        config=search_space,
+        num_samples=20,  # Number of trials
+        scheduler=ASHAScheduler(metric="loss", mode="min"),
+        search_alg=OptunaSearch(metric="loss", mode="min"),
+        resources_per_trial={"cpu": 8, "gpu": 0.5} 
+    )
+
+    # Get the best configuration
+    best_config = analysis.get_best_config(metric="loss", mode="min")
+    print("Best Hyperparameters:", best_config)
+
+    best_model = LSTMModel(
+        dedx_hidden_size=best_config["dedx_hidden_size"],
+        dedx_num_layers=best_config["dedx_num_layers"],
+        lstm_hidden_size=best_config["lstm_hidden_size"],
+        lstm_num_layers=best_config["lstm_num_layers"],
+        adjustement_scale=best_config["adjustment_scale"],
+        dropout_GRU=best_config["dropout_GRU"],
+        dropout_LSTM=best_config["dropout_LSTM"]
+    )
+
+    optimizer = optim.Adam(best_model.parameters(), lr=best_config["learning_rate"], weight_decay=best_config["weight_decay"])
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
+    criterion = nn.HuberLoss()
+
+    train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=40)
+    torch.save(best_model.state_dict(), "best_model.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
-    # model=MLP(input_size=100)
-    # state_dict = torch.load('model.pth',weights_only=True)  
-
+    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
-    print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
+    predictions, targets, test_loss = test_model(best_model, test_dataloader, criterion)
+    print(f"Final Test Loss: {test_loss}")
 
     time_end = timeit.default_timer()
     print(f"Temps d'execution : {time_end - time_start}")
@@ -192,6 +270,8 @@ if __name__ == "__main__":
     plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
     plt.xlabel('Valeur')
     plt.ylabel('N')
+    plt.xlim(4,10)
+    plt.ylim(0, 2000)
     plt.title('Histogramme des Prédictions')
     plt.legend()
 
@@ -201,6 +281,8 @@ if __name__ == "__main__":
     plt.xlabel('Valeur')
     plt.ylabel('N')
     plt.title('Histogramme des Valeurs Théoriques')
+    plt.xlim(4,10)
+    plt.ylim(0, 2000)
     plt.legend()
     plt.tight_layout()
 

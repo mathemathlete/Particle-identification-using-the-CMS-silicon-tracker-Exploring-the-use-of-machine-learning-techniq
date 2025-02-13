@@ -133,13 +133,11 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # --- Entraînement du modèle ---
-    train_model(model, dataloader, criterion, optimizer, epochs=20)
-    torch.save(model.state_dict(), "model.pth")
+    # train_model(model, dataloader, criterion, optimizer, epochs=20)
+    # torch.save(model.state_dict(), "model.pth")
 
     # --- Sauvegarde du modèle ---
-    torch.save(model.state_dict(), "model.pth")
-    # model=MLP(input_size=100)
-    state_dict = torch.load('model.pth',weights_only=True)  
+    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True))
     
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
