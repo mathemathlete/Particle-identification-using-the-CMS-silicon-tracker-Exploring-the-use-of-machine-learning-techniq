@@ -4,6 +4,7 @@ import Creation_plus_filtrage as cpf
 import Identification as id
 import awkward as ak
 import seaborn as sns
+import pandas as pd
 from scipy.spatial.distance import mahalanobis, cdist
 
 def plot_ML(path_ML,branch_of_interest, hist,hist_2, dev):
@@ -168,14 +169,40 @@ def dispertion_indication(path,branch_of_interest):
     distances_to_mean = cdist(outliers, mean_point.reshape(1, -1), metric='euclidean')
     mean_distance = np.mean(distances_to_mean)
 
-    return det_cov, mean_distance
+    return mean_distance
+
+
+def std(path,branch_of_interest,num_splits,plot):
+    data=cpf.import_data(path, branch_of_interest)
+    split_size = len(data) // num_splits
+    data=data.sort_values(by='track_p')
+    sub_data = [data.iloc[i * split_size:(i + 1) * split_size] for i in range(num_splits)]
+    std_devs = [sub_df['dedx'].std() for sub_df in sub_data]
+    std_p= [sub_df['track_p'].mean() for sub_df in sub_data]
+    std_data = pd.DataFrame()
+    std_data['std']=std_devs
+    std_data['track_p']=std_p
+
+    if plot==True:
+        plt.scatter(std_data['track_p'],std_data['std'])
+        plt.ylabel("standard deviation values")
+        plt.xlabel("P in GeV/c")
+        plt.legend()
+        plt.show()
+    return std_data
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
     # parameter for ML_plot
     branch_of_interest = ["dedx","track_p"]
     path_ML='ML_out.root'
-    # plot_ML(path_ML, branch_of_interest, True, False, True)
+    #plot_ML(path_ML, branch_of_interest, True, False, True)
 
 
 
@@ -186,4 +213,4 @@ if __name__ == "__main__":
     path_test='ML_out.root'
     #plot_diff_Ih(path_test,path_Ih,True,True)
     
-    print(dispertion_indication(path_test,branch_of_interest))
+    print(std(path_test,branch_of_interest,1000,True))
