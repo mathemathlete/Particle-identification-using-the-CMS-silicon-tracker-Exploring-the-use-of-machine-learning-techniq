@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
 import timeit
+import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence, pad_packed_sequence
 
 class ParticleDataset(Dataset):
@@ -126,7 +127,7 @@ def test_model(model, dataloader, criterion):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    file_name = "ML_training_LSTM.root"
+    file_name = "Root_files\ML_training_LSTM.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
@@ -170,11 +171,11 @@ if __name__ == "__main__":
     
 
     # --- Entraînement du modèle ---
-    train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
-    torch.save(model.state_dict(), "model_LSTM_plus_GRU_1per1.pth")
+    #train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
+    #torch.save(model.state_dict(), "model_LSTM_plus_GRU_1per1.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
-    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
+    model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
@@ -183,44 +184,50 @@ if __name__ == "__main__":
     time_end = timeit.default_timer()
     print(f"Temps d'execution : {time_end - time_start}")
 
-    # --- Création des histogrammes ---
-    plt.figure(figsize=(12, 6))
+    # # --- Création des histogrammes ---
+    # plt.figure(figsize=(12, 6))
 
-    # Histogramme des prédictions
-    plt.subplot(1, 2, 1)
-    plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
-    plt.xlabel('Valeur')
-    plt.ylabel('N')
-    plt.xlim(4,10)
-    plt.ylim(0, 2000)
-    plt.title('Histogramme des Prédictions')
-    plt.legend()
+    # # Histogramme des prédictions
+    # plt.subplot(1, 2, 1)
+    # plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
+    # plt.xlabel('Valeur')
+    # plt.ylabel('N')
+    # plt.xlim(4,10)
+    # plt.ylim(0, 2000)
+    # plt.title('Histogramme des Prédictions')
+    # plt.legend()
 
-    # Histogramme des valeurs théoriques
-    plt.subplot(1, 2, 2)
-    plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
-    plt.xlabel('Valeur')
-    plt.ylabel('N')
-    plt.title('Histogramme des Valeurs Théoriques')
-    plt.xlim(4,10)
-    plt.ylim(0, 2000)
-    plt.legend()
-    plt.tight_layout()
+    # # Histogramme des valeurs théoriques
+    # plt.subplot(1, 2, 2)
+    # plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
+    # plt.xlabel('Valeur')
+    # plt.ylabel('N')
+    # plt.title('Histogramme des Valeurs Théoriques')
+    # plt.xlim(4,10)
+    # plt.ylim(0, 2000)
+    # plt.legend()
+    # plt.tight_layout()
 
-    np_th= np.array(targets)
-    np_pr = np.array(predictions)
+    # np_th= np.array(targets)
+    # np_pr = np.array(predictions)
 
-    # --- Comparaison des prédictions et des valeurs théoriques ---
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
-    plt.xlabel('Valeur')
-    plt.ylabel('th-exp')
-    plt.title('Ecart entre théorique et prédite')
-    plt.legend()
+    # # --- Comparaison des prédictions et des valeurs théoriques ---
+    # plt.figure(figsize=(8, 8))
+    # plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
+    # plt.xlabel('Valeur')
+    # plt.ylabel('th-exp')
+    # plt.title('Ecart entre théorique et prédite')
+    # plt.legend()
 
-    p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
-    plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
-    plt.xscale('log')
-    plt.show()
+    # p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
+    # plt.figure(figsize=(8, 8))
+    # plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
+    # plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
+    # plt.xscale('log')
+    # plt.show()
+
+    data_plot=pd.DataFrame()
+    data_plot['track_p']=p_values_test
+    data_plot['dedx']=predictions
+    data_plot['Ih']=Ih_values_test
+    ML.plot_ML_inside(data_plot, True,True , True)
