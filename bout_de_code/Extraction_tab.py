@@ -8,8 +8,10 @@ def import_data(data):
         key = file.keys()[0]  # open the first Ttree
         tree = file[key]
         # tree.show()
-        data_tree = tree.arrays(library="pd",entry_stop=100)  # open data with panda
+        data_tree = tree.arrays(library="pd")  # open data with panda
         for array_name, array in data_tree.items():
+            if array_name == "track_p":
+                print(min(array))
             data[array_name] = array
     return(data)
 
