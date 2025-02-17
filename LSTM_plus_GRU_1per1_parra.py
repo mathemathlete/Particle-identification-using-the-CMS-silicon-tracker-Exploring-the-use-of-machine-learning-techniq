@@ -107,7 +107,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
         
         scheduler.step(epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
-        loss_array.append(epoch_loss / len(dataloader))
+        loss_array.append(loss.item())
         end = timeit.default_timer()
         elapsed_time = end - start
         minutes, seconds = divmod(elapsed_time, 60)
@@ -122,6 +122,7 @@ def test_model(model, dataloader, criterion):
     test_loss = 0.0
     with torch.no_grad():  # Désactiver la grad pour l'évaluation
         for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
+            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
             targets = targets.squeeze()  # Ensure targets are 1-dimensional
@@ -139,7 +140,7 @@ def test_model(model, dataloader, criterion):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    num_workers = min(8, os.cpu_count() - 1)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
     file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
     data = pd.DataFrame()
@@ -157,7 +158,7 @@ if __name__ == "__main__":
     eta_values_train =  train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
     dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=collate_fn,num_workers=num_workers,pin_memory=True)
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
@@ -167,7 +168,7 @@ if __name__ == "__main__":
     eta_values_test =  test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
-    test_dataloader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn,num_workers=num_workers,pin_memory=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
@@ -176,6 +177,7 @@ if __name__ == "__main__":
     lstm_num_layers = 2
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
+    model = model.to(device)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-6)
