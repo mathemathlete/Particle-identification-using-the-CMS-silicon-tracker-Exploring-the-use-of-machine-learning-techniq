@@ -25,8 +25,6 @@ def preparation_data(file_name, affichage=False):
     
     filtred_data = data[(data['Ih'] >= id.bethe_bloch(mass_limit, data['track_p']) * scaling) & (data['track_p'] < 2)].reset_index(drop=True) #Filtrage du bruit 
 
-
-
     filtred_p = filtred_data['track_p']
     filtred_dedx = filtred_data['Ih']
 
@@ -36,9 +34,6 @@ def preparation_data(file_name, affichage=False):
         return unfiltred_p, unfiltred_dedx, filtred_p, filtred_dedx
     else :
         return filtred_p, filtred_dedx
-
-    
-    
 
 def affichage (filename):
     p, dedx, p2, dedx2 = preparation_data(filename, True)
