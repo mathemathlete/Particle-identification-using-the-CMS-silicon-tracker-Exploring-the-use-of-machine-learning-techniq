@@ -42,6 +42,10 @@ def preparation_data2(filename, affichage=False):
     branch_of_interest=["Ih","track_p"]
     #branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
 
+<<<<<<< HEAD
+def affichage ():
+    p, dedx, p2, dedx2 = preparation_data("Root_Files/data_real.root", True)
+=======
     data=cpf.import_data(filename,branch_of_interest)
     # data['dedx_cluster']=data['dedx_charge']/data['dedx_pathlength'] 
     # data['Ih'] = np.sqrt(ak.sum(data['dedx_cluster']**2, axis=-1) / ak.count(data['dedx_cluster'], axis=-1))
@@ -56,6 +60,7 @@ def preparation_data2(filename, affichage=False):
 
 def affichage (filename):
     p, dedx, p2, dedx2 = preparation_data(filename, True)
+>>>>>>> a00fc782445647bfda6affc1c127e58df9b65989
 
     plt.figure(1)
     p_values = np.logspace(np.log10(0.00001), np.log10(5), 5000)
