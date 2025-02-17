@@ -10,10 +10,12 @@ import timeit
 import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 
+
+## PAS ENCORE FAIT 
 class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
         self.ndedx_cluster = ndedx_cluster # int
-        self.dedx_values = dedx_values # dedx values is an array of a variable size
+        self.dedx_values = dedx_values # dedx values is an array of a variable size 
         self.target_values = target_values # int        
         self.p_values = p_values # float
         self.eta_values = eta_values # float
@@ -79,7 +81,6 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
     loss_array = []
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
-    start = timeit.default_timer()
     for epoch in range(epochs):
         epoch_loss = 0 
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
@@ -103,10 +104,6 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
         scheduler.step(epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
         loss_array.append(loss.item())
-        end = timeit.default_timer()
-        elapsed_time = end - start
-        minutes, seconds = divmod(elapsed_time, 60)
-        print(f"Execution time for 1 epoch : {elapsed_time:.2f} seconds ({int(minutes)} min {seconds:.2f} sec)")
     return loss_array
         
 def test_model(model, dataloader, criterion):
@@ -132,7 +129,7 @@ def test_model(model, dataloader, criterion):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
+    file_name = "Root_Files/ML_training_LSTM_filtré.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
@@ -175,8 +172,8 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
-    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=400)
+    torch.save(model.state_dict(), "model_LSTM_400_epoch.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
