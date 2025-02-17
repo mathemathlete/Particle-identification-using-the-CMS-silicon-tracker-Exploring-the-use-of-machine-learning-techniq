@@ -22,7 +22,6 @@ def preparation_data(file_name, affichage=False):
         tree = file[key]
         data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
     print(data)
-    data=data[data['Ih'] <= 12000].reset_index(drop=True) #Premier filtrage sur les données dedx
     
     filtred_data = data[(data['Ih'] >= id.bethe_bloch(mass_limit, data['track_p']) * scaling) & (data['track_p'] < 2)].reset_index(drop=True) #Filtrage du bruit 
 
