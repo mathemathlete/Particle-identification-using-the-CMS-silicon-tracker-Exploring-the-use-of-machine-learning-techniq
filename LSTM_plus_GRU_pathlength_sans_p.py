@@ -15,8 +15,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
         self.ndedx_cluster = ndedx_cluster # int
-        self.dedx_values = dedx_values # dedx values is an array of a variable size
-        self.dx_values = dx_values 
+        self.dedx_values = dedx_values # dedx values is an array of a variable size 
         self.target_values = target_values # int        
         self.p_values = p_values # float
         self.eta_values = eta_values # float

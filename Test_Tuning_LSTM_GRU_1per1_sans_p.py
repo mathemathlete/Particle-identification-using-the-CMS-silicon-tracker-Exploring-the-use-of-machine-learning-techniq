@@ -33,7 +33,7 @@ class ParticleDataset(Dataset):
         z = torch.tensor(self.target_values[idx], dtype=torch.float32)
         u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
         o = torch.tensor(self.Ih_values[idx], dtype=torch.float32)
-        return x, y, z, t, u, o 
+        return x, y, z, u, o 
 
 class LSTMModel(nn.Module):
     def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers,
@@ -81,7 +81,7 @@ def collate_fn(batch):
         batch_first=True
     )
     extras = torch.stack([
-        torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32)
+        torch.tensor([ndedx, eta, Ih], dtype=torch.float32)
         for ndedx, eta, Ih in zip(ndedx_list, eta_list, Ih_list)
     ])
     targets = torch.tensor(target_list, dtype=torch.float32)
