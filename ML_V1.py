@@ -9,6 +9,7 @@ from torch.nn.utils.rnn import pad_sequence
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import numpy as np
+import timeit 
 
 class ParticleDataset(Dataset):
     def __init__(self, dedx_values, target_values, max_len=100):
@@ -51,6 +52,7 @@ def collate_fn(batch):
     return inputs_padded, targets
 
 def train_model(model, dataloader, criterion, optimizer, epochs=20):
+    loss_array = []
     for epoch in range(epochs):
         print(f"\n Epoch {epoch+1}\n-------------------------------")
         size = len(dataloader.dataset)
@@ -64,7 +66,7 @@ def train_model(model, dataloader, criterion, optimizer, epochs=20):
                 inputs_padded[i, :input[i].size(0)] = input[i]
             # Compute prediction and loss
             outputs = model(inputs_padded)
-            loss = criterion(outputs.squeeze(), targets)
+            loss = criterion(outputs.view(-1), targets.view(-1))
 
             # Backpropagation
             loss.backward()
@@ -75,6 +77,8 @@ def train_model(model, dataloader, criterion, optimizer, epochs=20):
                 loss, current = loss.item(), batch * batch_size + len(inputs_padded)
                 percentage = (current / size) * 100
                 print(f"loss: {loss:>7f} ({percentage:.2f}%)")
+        loss_array.append(loss.item())
+    return loss_array
 
 def test_model(model, dataloader, criterion,max_len):
     predictions = []
@@ -103,6 +107,7 @@ def test_model(model, dataloader, criterion,max_len):
 
 
 if __name__ == "__main__":
+    time_start = timeit.default_timer()
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     file_name = "Root_files/ML_training_1.2.root"
     max_len=100
@@ -133,9 +138,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # --- Entraînement du modèle ---
-    # train_model(model, dataloader, criterion, optimizer, epochs=20)
-    # torch.save(model.state_dict(), "model.pth")
-
+    losses_array = train_model(model, dataloader, criterion, optimizer, epochs=5)
     # --- Sauvegarde du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True))
     
@@ -143,6 +146,11 @@ if __name__ == "__main__":
     print("Evaluation du modèle...")
     predictions ,targets, test_loss = test_model(model, test_dataloader, criterion,max_len)
 
+    time_end = timeit.default_timer()
+    elapsed_time = time_end - time_start
+    hours, remainder = divmod(elapsed_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    print(f"Execution time: {elapsed_time:.2f} seconds ({int(hours)} h {int(minutes)} min {seconds:.2f} sec)")
 
     # --- Création des histogrammes ---
     plt.figure(figsize=(12, 6))
@@ -180,8 +188,11 @@ if __name__ == "__main__":
     plt.hist2d(p_values,np_pr,bins=500, cmap='viridis', label='Data')
     plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
     plt.xscale('log')
-    plt.show()
 
+    plt.figure()
+    epoch_count = [i+1 for i in range(len(losses_array))]
+    plt.plot(epoch_count, losses_array)
+    plt.show()
 
     data_out=pd.DataFrame()
     data_out["track_p"]=p_values

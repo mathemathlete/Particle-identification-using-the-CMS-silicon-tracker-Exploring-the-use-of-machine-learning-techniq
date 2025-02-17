@@ -176,7 +176,7 @@ def train_model_ray(config, checkpoint_dir=None):
 if __name__ == "__main__":
     # --- Data Import ---
     time_start = timeit.default_timer()
-    file_name = "ML_training_LSTM.root"
+    file_name = "Root_Files/ML_training_LSTM_filtré.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]
