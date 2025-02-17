@@ -47,6 +47,7 @@ def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=Fals
         # Convert the DataFrame columns to Awkward Arrays for filtering
         data_charge = ak.Array(data["dedx_charge"].tolist())
         data_pathlength = ak.Array(data["dedx_pathlength"].tolist())
+        data_geom=ak.Array(data["dedx_modulegeom"].tolist())
         masks = [ak.Array(data[col].tolist()) for col in active_filters]
 
         # Combine masks using logical AND
@@ -57,14 +58,17 @@ def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=Fals
         # Apply the combined mask to filter the data
         filtered_charge = data_charge[combined_mask]
         filtered_pathlength = data_pathlength[combined_mask]
+        filtered_geom = data_geom[combined_mask]
 
         # Update the DataFrame with the filtered data
         data["dedx_charge"] = [np.asarray(x) for x in filtered_charge.tolist()]
         data["dedx_pathlength"] = [np.asarray(x) for x in filtered_pathlength.tolist()]
+        data["dedx_modulegeom"] = [np.asarray(x) for x in filtered_geom.tolist()]
 
         # Remove rows where either `dedx_charge` or `dedx_pathlength` is an empty list
         data = data[data["dedx_charge"].apply(len) > 0]
         data = data[data["dedx_pathlength"].apply(len) > 0]
+        data = data[data["dedx_modulegeom"].apply(len) > 0]
 
     # Keep only the branch_of_interest
     data = data[branch_of_interest_extract]
@@ -73,7 +77,7 @@ def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=Fals
 
 def ecriture_root(data,file_out):
     with uproot.recreate(file_out) as new_file:
-        new_file["tree_name"] = { "dedx_charge": data['dedx_charge'],"dedx_pathlength" : data['dedx_pathlength'] , 'track_eta': data['track_eta'],"track_p" : data["track_p"]  }
+        new_file["tree_name"] = { "dedx_charge": data['dedx_charge'],"dedx_pathlength" : data['dedx_pathlength'] , 'track_eta': data['track_eta'],"track_p" : data["track_p"],   }
 
 
 if __name__ == "__main__":

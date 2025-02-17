@@ -267,21 +267,25 @@ def dispertion_indication(path,branch_of_interest):
     return mean_distance
 
 
-def std(data,num_splits,plot):
+def std(path,branch_of_interest,num_splits,plot):
+    data=cpf.import_data(path, branch_of_interest)
     split_size = len(data) // num_splits
     data=data.sort_values(by='track_p')
     sub_data = [data.iloc[i * split_size:(i + 1) * split_size] for i in range(num_splits)]
     std_devs = [sub_df['dedx'].std() for sub_df in sub_data]
-    std_p= [sub_df['track_p'].mean() for sub_df in sub_data]
+    mean_p= [sub_df['track_p'].mean() for sub_df in sub_data]
+    error = [std / np.sqrt(2 * (split_size - 1)) for std in std_devs]  # Erreur relative
     mean = [sub_df['dedx'].mean() for sub_df in sub_data]
     print(mean)
     std_data = pd.DataFrame()
     std_data['std']=std_devs
-    std_data['track_p']=std_p
+    std_data['track_p']=mean_p
+    std_data['error']=error
 
     if plot==True:
         plt.subplot(1, 2, 1)
         plt.scatter(std_data['track_p'],std_data['std'])
+        plt.errorbar(std_data.index, std_data['track_p'], yerr=std_data['error'], label='standard déviation', fmt='o', capsize=3, color='b')
         plt.ylabel("standard deviation values")
         plt.xlabel("P in GeV/c")
         plt.legend()
@@ -316,15 +320,15 @@ if __name__ == "__main__":
     # parameter for ML_plot
     branch_of_interest = ["dedx","track_p"]
     path_ML='ML_out.root'
-    plot_ML(path_ML, branch_of_interest, True, True, True)
+    #plot_ML(path_ML, branch_of_interest, True, True, True)
 
 
 
     # parameter for plot_diff_Ih
-    branch_of_interest_1 = ['dedx_cluster', 'track_p']
+    branch_of_interest_1 = ['dedx', 'track_p']
     path_Ih="ML_in.root"
     path_test='ML_out.root'
-    plot_diff_Ih(path_test,path_Ih,True,True)
+    #plot_diff_Ih(path_test,path_Ih,True,True)
 
 
-    std(path_test,1000,True)
+    std(path_test, branch_of_interest_1,10,True)
