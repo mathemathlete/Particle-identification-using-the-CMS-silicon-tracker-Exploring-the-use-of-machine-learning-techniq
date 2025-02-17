@@ -226,4 +226,7 @@ if __name__ == "__main__":
     data_plot['track_p']=p_values_test
     data_plot['dedx']=predictions
     data_plot['Ih']=Ih_values_test
-    ML.plot_ML_inside(data_plot, True,True , True)
+    ML.plot_ML_inside(data_plot, False,True , False)
+
+    ML.plot_diff_Ih(data_plot,True,True)
+    ML.std(data_plot,15,True)
