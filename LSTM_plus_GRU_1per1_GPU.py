@@ -158,7 +158,7 @@ if __name__ == "__main__":
     eta_values_train =  train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
     dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)
+    dataloader = DataLoader(dataset, batch_size=128, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
@@ -168,7 +168,7 @@ if __name__ == "__main__":
     eta_values_test =  test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
-    test_dataloader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
+    test_dataloader = DataLoader(test_dataset, batch_size=128, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
