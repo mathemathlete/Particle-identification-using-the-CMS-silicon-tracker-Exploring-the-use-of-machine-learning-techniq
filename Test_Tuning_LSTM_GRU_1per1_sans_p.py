@@ -17,11 +17,10 @@ from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
 
 class ParticleDataset(Dataset):
-    def __init__(self, ndedx_cluster, dedx_values, target_values, p_values, eta_values, Ih_values):
+    def __init__(self, ndedx_cluster, dedx_values, target_values, eta_values, Ih_values):
         self.ndedx_cluster = ndedx_cluster  # int
         self.dedx_values = dedx_values      # dedx values is an array of variable size
         self.target_values = target_values  # int        
-        self.p_values = p_values            # float
         self.eta_values = eta_values        # float
         self.Ih_values = Ih_values          # float 
 
@@ -32,7 +31,6 @@ class ParticleDataset(Dataset):
         x = torch.tensor(self.ndedx_cluster[idx], dtype=torch.float32)
         y = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
         z = torch.tensor(self.target_values[idx], dtype=torch.float32)
-        t = torch.tensor(self.p_values[idx], dtype=torch.float32)
         u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
         o = torch.tensor(self.Ih_values[idx], dtype=torch.float32)
         return x, y, z, t, u, o 
@@ -51,7 +49,7 @@ class LSTMModel(nn.Module):
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
         
         self.adjust_lstm = nn.LSTM(
-            input_size=5,
+            input_size=4,
             hidden_size=lstm_hidden_size,
             num_layers=lstm_num_layers,
             batch_first=True,
@@ -75,7 +73,7 @@ class LSTMModel(nn.Module):
         return dedx_pred + self.adjustment_scale * adjustment
 
 def collate_fn(batch):
-    ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
+    ndedx_list, dedx_list, target_list, eta_list, Ih_list = zip(*batch)
     lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
     padded_sequences = pad_sequence(
         [d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) 
@@ -84,7 +82,7 @@ def collate_fn(batch):
     )
     extras = torch.stack([
         torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32)
-        for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)
+        for ndedx, eta, Ih in zip(ndedx_list, eta_list, Ih_list)
     ])
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
@@ -151,7 +149,7 @@ def train_model_ray(config, checkpoint_dir=None):
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=config["decrease_factor_scheduler"])
     
     # Create a fresh DataLoader for this trial
-    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values, p_values_train, eta_values_train, Ih_values_train)
+    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values, eta_values_train, Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
     
     for epoch in range(20):
@@ -180,17 +178,16 @@ if __name__ == "__main__":
     with uproot.open(file_name) as file:
         key = file.keys()[0]
         tree = file[key]
-        data = tree.arrays(["ndedx_cluster", "dedx_cluster", "track_p", "track_eta", "Ih"], library="pd")
+        data = tree.arrays(["ndedx_cluster", "dedx_cluster", "track_eta", "Ih"], library="pd")
         train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
     # --- Prepare Training Data ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()
-    p_values_train = train_data["track_p"].to_list()
     eta_values_train = train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
-    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values, p_values_train, eta_values_train, Ih_values_train)
+    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values, eta_values_train, Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Prepare Test Data ---
@@ -200,7 +197,7 @@ if __name__ == "__main__":
     p_values_test = test_data["track_p"].to_list()
     eta_values_test = test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
-    test_dataset = ParticleDataset(ndedx_values_test, dedx_values_test, data_th_values_test, p_values_test, eta_values_test, Ih_values_test)
+    test_dataset = ParticleDataset(ndedx_values_test, dedx_values_test, data_th_values_test, eta_values_test, Ih_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
     # --- Hyperparameter Initialization ---

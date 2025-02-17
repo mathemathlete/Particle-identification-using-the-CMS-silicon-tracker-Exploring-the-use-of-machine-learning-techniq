@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 import timeit
 import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
+import os
 
 class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
@@ -75,39 +76,45 @@ def collate_fn(batch):
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
 
-def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
+def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, device):
+    model.to(device)  # Ensure model is on GPU
     loss_array = []
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
     start = timeit.default_timer()
     for epoch in range(epochs):
-        epoch_loss = 0 
+        epoch_loss = 0
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
         model.train()
-        for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):  # Expect 3 values
-            outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
-            outputs = outputs.squeeze()
-            targets = targets.squeeze()
-            loss = criterion(outputs, targets)
-            # Backpropagation
 
+        for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):
+            # Move data to GPU
+            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+
+            optimizer.zero_grad()  # Reset gradients
+            outputs = model(inputs, lengths, extras).squeeze()
+
+            loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
 
             epoch_loss += loss.item()
             if batch % 100 == 0:
-                loss, current = loss.item(), batch * batch_size + len(inputs)
+                loss_value = loss.item()
+                current = batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
-                print(f"loss: {loss:>7f} ({percentage:.2f}%)")
+                print(f"Loss: {loss_value:>7f} ({percentage:.2f}%)")
+        
         scheduler.step(epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
-        loss_array.append(loss.item())
+        loss_array.append(epoch_loss / len(dataloader))
         end = timeit.default_timer()
         elapsed_time = end - start
         minutes, seconds = divmod(elapsed_time, 60)
         print(f"Execution time for 1 epoch : {elapsed_time:.2f} seconds ({int(minutes)} min {seconds:.2f} sec)")
+
     return loss_array
+
         
 def test_model(model, dataloader, criterion):
     predictions = []
@@ -132,6 +139,8 @@ def test_model(model, dataloader, criterion):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
+    num_workers = min(8, os.cpu_count() - 1)
+
     file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
@@ -148,7 +157,7 @@ if __name__ == "__main__":
     eta_values_train =  train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
     dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=collate_fn,num_workers=num_workers,pin_memory=True)
 
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
@@ -158,7 +167,7 @@ if __name__ == "__main__":
     eta_values_test =  test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
-    test_dataloader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
+    test_dataloader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn,num_workers=num_workers,pin_memory=True)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
