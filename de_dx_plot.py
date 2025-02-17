@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import sys
 import Identification as id
 import numpy as np
+import awkward as ak
 
 m_p = 938e-3# proton mass in eV
 m_deut = 1875e-3 # deuteron mass in eV
@@ -14,26 +15,26 @@ mass_limit = 0.789 # determined empirically
 scaling = 1e3 # scaling factor for the Bethe-Bloch curve determined empirically
 
 def preparation_data(file_name, affichage=False):
-    branch_of_interest = ["It", "track_p"]
-    file_name="de_dx.root"
+    branch_of_interest = ["track_p","dedx_pathlength","dedx_charge"]
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
         tree = file[key]
         data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
-    print(data)
-    data=data[data['It'] <= 12000].reset_index(drop=True) #Premier filtrage sur les données dedx
+    data['dedx_cluster']=data['dedx_charge']/data['dedx_pathlength'] #calculate dedx and create a new column
+    data['Ih'] = np.sqrt(ak.sum(data['dedx_cluster']**2, axis=-1) / ak.count(data['dedx_cluster'], axis=-1)) #calculate quadratique mean of dedx along a track
+    data=data[data['Ih'] <= 12000].reset_index(drop=True) #Premier filtrage sur les données dedx
     
-    filtred_data = data[(data['It'] >= id.bethe_bloch(mass_limit, data['track_p']) * scaling) & (data['track_p'] < 2)].reset_index(drop=True) #Filtrage du bruit 
+    filtred_data = data[(data['Ih'] >= id.bethe_bloch(mass_limit, data['track_p']) * scaling) & (data['track_p'] < 2)].reset_index(drop=True) #Filtrage du bruit 
 
 
 
     filtred_p = filtred_data['track_p']
-    filtred_dedx = filtred_data['It']
+    filtred_dedx = filtred_data['Ih']
 
     if (affichage==True):
         unfiltred_p = data['track_p']
-        unfiltred_dedx = data['It']
+        unfiltred_dedx = data['Ih']
         return unfiltred_p, unfiltred_dedx, filtred_p, filtred_dedx
     else :
         return filtred_p, filtred_dedx
@@ -42,7 +43,7 @@ def preparation_data(file_name, affichage=False):
     
 
 def affichage ():
-    p, dedx, p2, dedx2 = preparation_data("de_dx.root", True)
+    p, dedx, p2, dedx2 = preparation_data("Root_Files/signal.root", True)
 
     plt.figure(1)
     p_values = np.logspace(np.log10(0.0001), np.log10(5), 5000)
