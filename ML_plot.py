@@ -298,7 +298,15 @@ def std(data,num_splits,plot):
     return std_data
 
 
-
+def loss_epoch(losses_epoch):
+    plt.figure()
+    epoch_count = [i+1 for i in range(len(losses_epoch))]
+    plt.plot(epoch_count, losses_epoch)
+    plt.title("Loss function Evolution")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.show()
 
 
 

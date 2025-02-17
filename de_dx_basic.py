@@ -4,11 +4,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import awkward as ak     
 
-def affichage ():
+def affichage (filename):
     branch_of_interest=["Ih","track_p"]
     #branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
 
-    data=cpf.import_data("Root_files/data_real.root",branch_of_interest)
+    data=cpf.import_data(filename,branch_of_interest)
     # data['dedx_cluster']=data['dedx_charge']/data['dedx_pathlength'] 
     # data['Ih'] = np.sqrt(ak.sum(data['dedx_cluster']**2, axis=-1) / ak.count(data['dedx_cluster'], axis=-1))
     # data = data[data['track_p'] <= 5000 ].reset_index(drop=True)
@@ -30,4 +30,5 @@ def affichage ():
     plt.show()  
 
 if __name__ == "__main__":
-    affichage()
+    filename = "ML_training_LSTM_filtré_Max_Ih_20000.root"
+    affichage(filename)

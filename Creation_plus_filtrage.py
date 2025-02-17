@@ -66,9 +66,8 @@ def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=Fals
         data = data[data["dedx_charge"].apply(len) > 0]
         data = data[data["dedx_pathlength"].apply(len) > 0]
 
-    # Keep only the `dedx_charge` and `dedx_pathlength` columns
+    # Keep only the branch_of_interest
     data = data[branch_of_interest_extract]
-
     return data
 
 
