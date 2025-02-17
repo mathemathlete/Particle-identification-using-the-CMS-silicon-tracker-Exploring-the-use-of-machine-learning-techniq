@@ -15,21 +15,14 @@ mass_limit = 0.789 # determined empirically
 scaling = 1e3 # scaling factor for the Bethe-Bloch curve determined empirically
 
 def preparation_data(file_name, affichage=False):
-<<<<<<< HEAD
     branch_of_interest = ["track_p","dedx_pathlength","dedx_charge"]
-=======
-    branch_of_interest = ["Ih", "track_p"]
-    file_name="Root_files/signal_filtré.root"
->>>>>>> ebcae38ee43b596fd8d9f03ad6b72c09c5ac20e1
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
         tree = file[key]
         data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
-<<<<<<< HEAD
     data['dedx_cluster']=data['dedx_charge']/data['dedx_pathlength'] #calculate dedx and create a new column
     data['Ih'] = np.sqrt(ak.sum(data['dedx_cluster']**2, axis=-1) / ak.count(data['dedx_cluster'], axis=-1)) #calculate quadratique mean of dedx along a track
-=======
     print(data)
     
     filtred_data = data[(data['Ih'] >= id.bethe_bloch(mass_limit, data['track_p']) * scaling) & (data['track_p'] < 2)].reset_index(drop=True) #Filtrage du bruit 
@@ -50,11 +43,7 @@ def preparation_data(file_name, affichage=False):
     
 
 def affichage ():
-<<<<<<< HEAD
     p, dedx, p2, dedx2 = preparation_data("Root_Files/signal.root", True)
-=======
-    p, dedx, p2, dedx2 = preparation_data("Root_files/signal_filtré.root", True)
->>>>>>> ebcae38ee43b596fd8d9f03ad6b72c09c5ac20e1
 
     plt.figure(1)
     p_values = np.logspace(np.log10(0.0001), np.log10(5), 5000)
