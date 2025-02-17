@@ -43,7 +43,7 @@ def preparation_data(file_name, affichage=False):
     
 
 def affichage ():
-    p, dedx, p2, dedx2 = preparation_data("Root_Files/signal.root", True)
+    p, dedx, p2, dedx2 = preparation_data("Root_Files/data_real.root", True)
 
     plt.figure(1)
     p_values = np.logspace(np.log10(0.0001), np.log10(5), 5000)
