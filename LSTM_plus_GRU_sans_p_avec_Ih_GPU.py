@@ -73,15 +73,17 @@ def collate_fn(batch):
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
 
-def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
+def train_model(model, dataloader, criterion, optimizer, scheduler, epochs,device):
     loss_array = []
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
+    start = timeit.default_timer()
     for epoch in range(epochs):
         epoch_loss = 0 
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
         model.train()
         for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):  # Expect 3 values
+            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()
             targets = targets.squeeze()
@@ -100,14 +102,19 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
         scheduler.step(epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
         loss_array.append(loss.item())
+        end = timeit.default_timer()
+        elapsed_time = end - start
+        minutes, seconds = divmod(elapsed_time, 60)
+        print(f"Execution time for 1 epoch : {elapsed_time:.2f} seconds ({int(minutes)} min {seconds:.2f} sec)")
     return loss_array
         
-def test_model(model, dataloader, criterion):
+def test_model(model, dataloader, criterion,device):
     predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
     test_loss = 0.0
     with torch.no_grad():  # Désactiver la grad pour l'évaluation
         for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
+            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
             targets = targets.squeeze()  # Ensure targets are 1-dimensional
@@ -127,6 +134,8 @@ if __name__ == "__main__":
     time_start = timeit.default_timer()
     file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
     data = pd.DataFrame()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
         tree = file[key]
@@ -140,7 +149,7 @@ if __name__ == "__main__":
     eta_values_train =  train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
     dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,eta_values_train,Ih_values_train)
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)
+    dataloader = DataLoader(dataset, batch_size=512, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
@@ -150,7 +159,7 @@ if __name__ == "__main__":
     eta_values_test =  test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
-    test_dataloader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
+    test_dataloader = DataLoader(test_dataset, batch_size=512, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
@@ -159,6 +168,7 @@ if __name__ == "__main__":
     lstm_num_layers = 2
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
+    model = model.to(device)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-6)
@@ -167,15 +177,15 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
-    torch.save(model.state_dict(), "model_LSTM_sans_p_epoch.pth")
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, 10 , device)
+    torch.save(model.state_dict(), "model_LSTM_sans_p_avec_Ih_10epoch.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
+    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion,device)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start

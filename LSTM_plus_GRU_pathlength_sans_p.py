@@ -129,6 +129,7 @@ def test_model(model, dataloader, criterion):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
+
     file_name = "Root_Files/ML_training_LSTM_filtré.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
@@ -173,7 +174,7 @@ if __name__ == "__main__":
 
     # --- Entraînement du modèle ---
     losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=400)
-    torch.save(model.state_dict(), "model_LSTM_400_epoch.pth")
+    torch.save(model.state_dict(), "model_LSTM_V3.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
