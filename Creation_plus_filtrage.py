@@ -1,8 +1,7 @@
 import uproot
 import pandas as pd
 import awkward as ak
-
-
+import numpy as np
 
 
 def import_data(file_name, branch_of_interest):
@@ -38,6 +37,7 @@ def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=Fals
         active_filters.append("dedx_insideTkmod")
     if dedx_clusclean:
         active_filters.append("dedx_clusclean")
+    branch_of_interest_extract = np.copy(branch_of_interest)
     branch_of_interest.extend(active_filters)
 
     data=import_data(file_name, branch_of_interest)
@@ -59,31 +59,32 @@ def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=Fals
         filtered_pathlength = data_pathlength[combined_mask]
 
         # Update the DataFrame with the filtered data
-        data["dedx_charge"] = filtered_charge.tolist()
-        data["dedx_pathlength"] = filtered_pathlength.tolist()
+        data["dedx_charge"] = [np.asarray(x) for x in filtered_charge.tolist()]
+        data["dedx_pathlength"] = [np.asarray(x) for x in filtered_pathlength.tolist()]
 
         # Remove rows where either `dedx_charge` or `dedx_pathlength` is an empty list
         data = data[data["dedx_charge"].apply(len) > 0]
         data = data[data["dedx_pathlength"].apply(len) > 0]
 
     # Keep only the `dedx_charge` and `dedx_pathlength` columns
-    data = data[["dedx_charge", "dedx_pathlength","track_p"]]
+    data = data[branch_of_interest_extract]
 
     return data
 
 
-
+def ecriture_root(data,file_out):
+    with uproot.recreate(file_out) as new_file:
+        new_file["tree_name"] = { "dedx_charge": data['dedx_charge'],"dedx_pathlength" : data['dedx_pathlength'] , 'track_eta': data['track_eta'],"track_p" : data["track_p"]  }
 
 
 if __name__ == "__main__":
-        
-    branch_of_interest = ["dedx_charge", "dedx_pathlength","track_p"]
-   
-    ## Test to debug (reminder : reduce the amount of data with the empty_stop parameter line )
-    # Example usage (sans filtre)
-    A = filtrage_dedx("tree.root")
-    print(A)
+    branch_of_interest = ["dedx_charge", "dedx_pathlength","track_p","track_eta"]
 
     # Example usage 2 (avec filtre)
-    A = filtrage_dedx("tree.root",True,False,True)
-    print(A)
+    data = filtrage_dedx("Root_files/tree.root",branch_of_interest,True,True,True)
+    ecriture_root(data,"Root_Files/a")
+    print(data)
+
+    data2 = filtrage_dedx("Root_files/tree.root",branch_of_interest,False,False,False)
+    ecriture_root(data,"Root_Files/aa")
+    print(data2)

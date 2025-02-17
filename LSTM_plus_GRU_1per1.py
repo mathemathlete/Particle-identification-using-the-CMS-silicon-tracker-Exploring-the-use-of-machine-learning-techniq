@@ -6,11 +6,9 @@ import uproot
 import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-import numpy as np
 import timeit
 import ML_plot as ML
-from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 
 class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
@@ -41,10 +39,9 @@ class LSTMModel(nn.Module):
             hidden_size=dedx_hidden_size,
             num_layers=dedx_num_layers,
             batch_first=True,
-            dropout=0.1 if dedx_num_layers > 1 else 0.0
+            dropout=0.18 if dedx_num_layers > 1 else 0.0
         )
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
-        self.dropout_dedx = nn.Dropout(0.4)
         
         self.adjust_lstm = nn.LSTM(
             input_size=5,
@@ -55,13 +52,13 @@ class LSTMModel(nn.Module):
         )
         self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
         self.relu = nn.ReLU()
-        self.adjustment_scale = 0.2
+        self.adjustment_scale = 0.64
 
     def forward(self, dedx_seq, lengths, extras):
         packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, hidden = self.dedx_rnn(packed_seq)
         hidden_last = hidden[-1]
-        dedx_pred = self.dedx_fc(self.dropout_dedx(hidden_last))
+        dedx_pred = self.dedx_fc(hidden_last)
         
         lstm_input = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
         lstm_out, (h_n, c_n) = self.adjust_lstm(lstm_input)
@@ -78,7 +75,7 @@ def collate_fn(batch):
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
 
-def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
+def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=1):
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
     for epoch in range(epochs):
@@ -127,7 +124,7 @@ def test_model(model, dataloader, criterion):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    file_name = "Root_files\ML_training_LSTM.root"
+    file_name = "Root_Files/ML_training_LSTM_filtré.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
@@ -143,7 +140,7 @@ if __name__ == "__main__":
     eta_values_train =  train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
     dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
+    dataloader = DataLoader(dataset, batch_size=256, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
@@ -153,10 +150,10 @@ if __name__ == "__main__":
     eta_values_test =  test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
-    test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
+    test_dataloader = DataLoader(test_dataset, batch_size=256, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
-    dedx_hidden_size = 128
+    dedx_hidden_size = 256
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
     lstm_hidden_size = 64
     lstm_num_layers = 2
@@ -164,18 +161,17 @@ if __name__ == "__main__":
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-6)
     
     # Learning rate scheduler: reduce LR on plateau
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.1)
-    
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    #train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
-    #torch.save(model.state_dict(), "model_LSTM_plus_GRU_1per1.pth")
+    train_model(model, dataloader, criterion, optimizer, scheduler, epochs=10)
+    torch.save(model.state_dict(), "model_tuned.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
-    model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
+    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")

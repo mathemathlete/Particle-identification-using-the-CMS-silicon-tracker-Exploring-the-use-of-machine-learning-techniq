@@ -206,15 +206,15 @@ if __name__ == "__main__":
 
     # --- Hyperparameter Initialization ---
     search_space = {
-        "dedx_hidden_size": tune.choice([64, 128, 256]),
+        "dedx_hidden_size": tune.choice([64, 128, 256, 512, 1024]),
         "dedx_num_layers": tune.choice([1, 2, 3]),
         "lstm_hidden_size": tune.choice([32, 64, 128]),
         "lstm_num_layers": tune.choice([1, 2, 3]),
         "adjustment_scale": tune.uniform(0.1, 1.0),
         "dropout_GRU": tune.uniform(0.1, 0.5),
         "dropout_LSTM": tune.uniform(0.1, 0.5),
-        "learning_rate": tune.loguniform(1e-4, 1e-2),
-        "weight_decay": tune.loguniform(1e-6, 1e-3),
+        "learning_rate": tune.loguniform(1e-4, 1e-2),   
+        "weight_decay": tune.loguniform(1e-6, 1e-3),    
         "decrease_factor_scheduler": tune.choice([0.5, 0.1])
     }
     
@@ -226,7 +226,7 @@ if __name__ == "__main__":
         num_samples=20,
         scheduler=ASHAScheduler(metric="loss", mode="min"),
         search_alg=OptunaSearch(metric="loss", mode="min"),
-        resources_per_trial={"cpu": 8, "gpu": 0.5},
+        resources_per_trial={"cpu": 10, "gpu": 0.8},
     )
 
     best_config = analysis.get_best_config(metric="loss", mode="min")
