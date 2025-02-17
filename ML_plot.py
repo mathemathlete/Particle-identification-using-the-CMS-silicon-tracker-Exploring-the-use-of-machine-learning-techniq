@@ -285,7 +285,7 @@ def std(path,branch_of_interest,num_splits,plot):
     if plot==True:
         plt.subplot(1, 2, 1)
         plt.scatter(std_data['track_p'],std_data['std'])
-        plt.errorbar(std_data.index, std_data['track_p'], yerr=std_data['error'], label='standard déviation', fmt='o', capsize=3, color='b')
+        plt.errorbar(std_data['track_p'], std_data['std'], yerr=std_data['error'], label='standard déviation', fmt='o', capsize=3, color='b')
         plt.ylabel("standard deviation values")
         plt.xlabel("P in GeV/c")
         plt.legend()
@@ -331,4 +331,4 @@ if __name__ == "__main__":
     #plot_diff_Ih(path_test,path_Ih,True,True)
 
 
-    std(path_test, branch_of_interest_1,10,True)
+    std(path_test, branch_of_interest_1,16,True)

@@ -7,6 +7,7 @@ import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import timeit
+
 import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 
@@ -132,7 +133,7 @@ def test_model(model, dataloader, criterion):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
+    file_name = "Root_Files/ML_training_LSTM.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
@@ -175,7 +176,7 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=1)
     torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
 
     # --- Sauvegarde et Chargement du modèle ---

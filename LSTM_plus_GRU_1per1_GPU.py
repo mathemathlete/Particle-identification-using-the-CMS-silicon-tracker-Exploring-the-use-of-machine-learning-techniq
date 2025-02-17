@@ -43,6 +43,7 @@ class LSTMModel(nn.Module):
             dropout=0.18 if dedx_num_layers > 1 else 0.0
         )
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
+        self.dropout_dedx= nn.Dropout(0.4)
         
         self.adjust_lstm = nn.LSTM(
             input_size=5,
@@ -53,13 +54,13 @@ class LSTMModel(nn.Module):
         )
         self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
         self.relu = nn.ReLU()
-        self.adjustment_scale = 0.64
+        self.adjustment_scale = 0.1
 
     def forward(self, dedx_seq, lengths, extras):
         packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
         packed_out, hidden = self.dedx_rnn(packed_seq)
         hidden_last = hidden[-1]
-        dedx_pred = self.dedx_fc(hidden_last)
+        dedx_pred = self.dedx_fc(self.dropout_dedx(hidden_last))
         
         lstm_input = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
         lstm_out, (h_n, c_n) = self.adjust_lstm(lstm_input)
@@ -116,7 +117,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
     return loss_array
 
         
-def test_model(model, dataloader, criterion):
+def test_model(model, dataloader, criterion,device):
     predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
     test_loss = 0.0
@@ -142,7 +143,7 @@ if __name__ == "__main__":
     time_start = timeit.default_timer()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
-    file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
+    file_name = "Root_Files/ML_training_LSTM.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
@@ -171,30 +172,30 @@ if __name__ == "__main__":
     test_dataloader = DataLoader(test_dataset, batch_size=128, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
-    dedx_hidden_size = 256
-    dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
+    dedx_hidden_size = 128
+    dedx_num_layers = 1   # With one layer, GRU dropout is not applied.
     lstm_hidden_size = 64
-    lstm_num_layers = 2
+    lstm_num_layers = 1
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
     model = model.to(device)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-6)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
     
     # Learning rate scheduler: reduce LR on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=40)
-    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,10, device)
+    # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
+    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion, device)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
