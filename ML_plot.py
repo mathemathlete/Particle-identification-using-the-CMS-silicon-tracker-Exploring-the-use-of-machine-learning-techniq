@@ -70,6 +70,7 @@ def plot_ML_inside(data, hist,hist_2, dev):
     
     np_th= np.array(id.bethe_bloch(938e-3,data['track_p']))
     np_pr = np.array(data['dedx'])
+    np_Ih=np.array(data['Ih'])*1e-3
 
     if hist==True:
        
@@ -94,17 +95,44 @@ def plot_ML_inside(data, hist,hist_2, dev):
         plt.tight_layout()
 
     if hist_2==True:   
+        std_dev_pr = np.std(np_pr - np_th)
+        std_dev_Ih=np.std(np_Ih - np_th)
+          
+          
+        plt.figure(figsize=(12, 6))
+        plt.subplot(2, 2, 1)
+        plt.hist(np_pr - np_th, bins=200,range=[-7.5,7.5], color='blue', alpha=0.7, label='1D Histogram')
+        plt.axvline(std_dev_pr, color='red', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_dev_pr:.2f}')
+        plt.axvline(-std_dev_pr, color='red', linestyle='dashed', linewidth=1)
+        plt.xlabel('exp-th')
+        plt.ylabel('Counts')
+        plt.ylim([0,1100])
+        plt.title('1D Histogram of Ecart between theory and prediction')
+        plt.legend()
 
-            std_dev = np.std(np_pr - np_th)
-            plt.figure(figsize=(8, 8))
-            plt.hist(np_pr - np_th, bins=200,range=[-7.5,7.5], color='blue', alpha=0.7, label='1D Histogram')
-            plt.axvline(std_dev, color='red', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_dev:.2f}')
-            plt.axvline(-std_dev, color='red', linestyle='dashed', linewidth=1)
-            plt.xlabel('th-exp')
-            plt.ylabel('Counts')
-            plt.title('1D Histogram of Ecart between theory and prediction')
-            plt.legend()
-            plt.show()
+        plt.subplot(2, 2, 2)
+        plt.hist(np_Ih - np_th, bins=200, range=[-7.5,7.5], color='blue', alpha=0.7, label='1D Histogram')
+        plt.axvline(std_dev_Ih, color='red', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_dev_Ih:.2f}')
+        plt.axvline(-std_dev_Ih, color='red', linestyle='dashed', linewidth=1)
+        plt.xlabel('Ih-th')
+        plt.ylabel('Counts')
+        plt.ylim([0,1100])
+        plt.title('1D Histogram of Ecart between Ih formula and theorie')
+        plt.legend()
+
+        plt.subplot(2, 2, 3)
+        plt.hist(np_Ih - np_th, bins=200, range=[-7.5,7.5], color='blue', alpha=0.7, label='1D Histogram')
+        plt.axvline(std_dev_Ih, color='blue', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_dev_Ih:.2f}')
+        plt.axvline(-std_dev_Ih, color='blue', linestyle='dashed', linewidth=1)
+        plt.hist(np_pr - np_th, bins=200, range=[-7.5,7.5], color='red', alpha=0.7, label='1D Histogram')
+        plt.axvline(std_dev_pr, color='red', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_dev_pr:.2f}')
+        plt.axvline(-std_dev_pr, color='red', linestyle='dashed', linewidth=1)
+        plt.xlabel('deviation')
+        plt.ylabel('Counts')
+        plt.ylim([0,1100])
+        plt.title('1D Histogram of deviation with theorie')
+        plt.legend()
+        plt.show()
 
     if dev==True:
     # --- Comparaison des prédictions et des momentums théoriques ---
@@ -125,30 +153,42 @@ def plot_ML_inside(data, hist,hist_2, dev):
 
 
 
-def plot_diff_Ih(path_test,path_Ih, hist, hist_2):
+def plot_diff_Ih(data_test, hist, hist_2):
 
-    data_Ih=cpf.import_data(path_Ih, branch_of_interest_1)
-    data_test=cpf.import_data(path_test, branch_of_interest_2)
-    data_Ih['Ih'] = np.sqrt(ak.sum(data_Ih['dedx_cluster']**2, axis=-1) / ak.count(data_Ih['dedx_cluster'], axis=-1) ) * 1e-3 #calculate quadratique mean of dedx along a track
+    data_test['Ih']=data_test['Ih']*1e-3
+    data_test['diff']=data_test['Ih']-data_test['dedx']
+    std_1=data_test['diff'].std()
+    mean_1=data_test['diff'].mean()
+    data_test['ratio']=data_test['Ih']/data_test['dedx']
+    std_2=data_test['ratio'].std()
+    mean_2=data_test['ratio'].mean()
     if hist==True:
         plt.figure(1,figsize=(12, 6))
         plt.subplot(1,2,1)
-        plt.hist(data_Ih['Ih']-data_test['dedx'], bins=100, alpha=0.7, label='Ih-dedx')
+        plt.hist(data_test['diff'], bins=100, alpha=0.7, label='Ih-dedx')
+        plt.axvline(mean_1+std_1, color='blue', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_1:.2f}\n mean={mean_1:.2f}')
+        plt.axvline(mean_1-std_1, color='blue', linestyle='dashed', linewidth=1)
         plt.xlabel('difference between Ih and dedx')    
         plt.ylabel('N')
+        plt.ylim([0,850])
+
         plt.title('Histogram of difference between Ih and dedx')
         plt.legend()
         plt.subplot(1,2,2)
-        plt.hist(data_Ih['Ih']/data_test['dedx'], bins=100, alpha=0.7, label='Ih/dedx')
+        plt.hist(data_test['ratio'], bins=100, alpha=0.7, label='Ih/dedx')
+        plt.axvline(mean_2+std_2, color='blue', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_2:.2f}\n mean={mean_2:.2f}')
+        plt.axvline(mean_2-std_2, color='blue', linestyle='dashed', linewidth=1)
         plt.xlabel('ratio between Ih and dedx')
         plt.ylabel('N')
+        plt.ylim([0,850])
+
         plt.title('Histogram of ratio between Ih and dedx')
         plt.legend()
         plt.tight_layout()
 
     if hist_2==True:
 
-        density_Ih = np.sort(data_Ih['Ih'])
+        density_Ih = np.sort(data_test['Ih'])
         cumulative_density = np.cumsum(density_Ih) / np.sum(density_Ih)
         threshold_Ih = density_Ih[np.searchsorted(cumulative_density, 0.9)]  # Trouver la densité qui couvre 90%
         contour_level = np.mean(density_Ih >= threshold_Ih)
@@ -160,8 +200,8 @@ def plot_diff_Ih(path_test,path_Ih, hist, hist_2):
 
         plt.figure(2, figsize=(12, 6))
         plt.subplot(2,2,1)
-        plt.hist2d(data_Ih['track_p'],data_Ih['Ih'],bins=500,  cmap='viridis', label='Data')
-        sns.kdeplot(x=data_Ih['track_p'], y=data_Ih['Ih'], levels=[contour_level], colors="red", linewidths=2)
+        plt.hist2d(data_test['track_p'],data_test['Ih'],bins=500,  cmap='viridis', label='Data')
+        sns.kdeplot(x=data_test['track_p'], y=data_test['Ih'], levels=[contour_level], colors="red", linewidths=2)
         plt.xlabel('p in GeV/c')
         plt.ylabel(r'$-(\frac{dE}{dx}$)')
         plt.title('Beth-Bloch recontruction with Ih formula')
@@ -174,7 +214,7 @@ def plot_diff_Ih(path_test,path_Ih, hist, hist_2):
         plt.title('Beth-Bloch recontruction with Machine Learning')
         plt.legend()
         plt.subplot(2,2,3)
-        plt.hist2d(data_test['track_p'],data_Ih['Ih']-data_test['dedx'],bins=500,  cmap='viridis', label='Data')
+        plt.hist2d(data_test['track_p'],data_test['Ih']-data_test['dedx'],bins=500,  cmap='viridis', label='Data')
         plt.xlabel('p in GeV/c')
         plt.ylabel(r'$\Delta\frac{dE}{dx}$')
         plt.title('Difference between two Beth-Bloch reconstruction')
@@ -227,23 +267,34 @@ def dispertion_indication(path,branch_of_interest):
     return mean_distance
 
 
-def std(path,branch_of_interest,num_splits,plot):
-    data=cpf.import_data(path, branch_of_interest)
+def std(data,num_splits,plot):
     split_size = len(data) // num_splits
     data=data.sort_values(by='track_p')
     sub_data = [data.iloc[i * split_size:(i + 1) * split_size] for i in range(num_splits)]
     std_devs = [sub_df['dedx'].std() for sub_df in sub_data]
     std_p= [sub_df['track_p'].mean() for sub_df in sub_data]
+    mean = [sub_df['dedx'].mean() for sub_df in sub_data]
+    print(mean)
     std_data = pd.DataFrame()
     std_data['std']=std_devs
     std_data['track_p']=std_p
 
     if plot==True:
+        plt.subplot(1, 2, 1)
         plt.scatter(std_data['track_p'],std_data['std'])
         plt.ylabel("standard deviation values")
         plt.xlabel("P in GeV/c")
         plt.legend()
+
+        plt.subplot(1, 2, 2)
+        plt.scatter(std_data['track_p'] ,std_data['std']/mean)
+        plt.ylabel("standard deviation divid by the mean")
+        plt.xlabel("P in GeV/c")
+        plt.legend()
+        
         plt.show()
+
+    
     return std_data
 
 
@@ -257,15 +308,15 @@ if __name__ == "__main__":
     # parameter for ML_plot
     branch_of_interest = ["dedx","track_p"]
     path_ML='ML_out.root'
-    #plot_ML(path_ML, branch_of_interest, True, False, True)
+    plot_ML(path_ML, branch_of_interest, True, True, True)
 
 
 
     # parameter for plot_diff_Ih
     branch_of_interest_1 = ['dedx_cluster', 'track_p']
-    branch_of_interest_2 = ['dedx','track_p']
     path_Ih="ML_in.root"
     path_test='ML_out.root'
-    #plot_diff_Ih(path_test,path_Ih,True,True)
-    
-    print(std(path_test,branch_of_interest,1000,True))
+    plot_diff_Ih(path_test,path_Ih,True,True)
+
+
+    std(path_test,1000,True)
