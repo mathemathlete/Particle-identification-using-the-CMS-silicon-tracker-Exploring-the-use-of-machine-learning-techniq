@@ -20,7 +20,7 @@ def collate_fn(batch):
     return padded_sequences, lengths, targets, extras
 
 class ParticleDataset(Dataset):
-    def __init__(self, ndedx_cluster, dedx_values, target_values,eta_values,Ih_values):
+    def __init__(self, ndedx_cluster, dedx_values, target_values,eta_values):
         self.ndedx_cluster = ndedx_cluster # int
         self.dedx_values = dedx_values # dedx values is an array of a variable size
         self.target_values = target_values # float
@@ -104,7 +104,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
         
         scheduler.step(epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
-        loss_array.append(loss.item())
+        loss_array.append(epoch_loss/len(dataloader))
         end = timeit.default_timer()
         elapsed_time = end - start
         minutes, seconds = divmod(elapsed_time, 60)
@@ -166,12 +166,12 @@ if __name__ == "__main__":
 # --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
-    mlp_hidden_size = 256
+    mlp_hidden_size = 128
     adjustement_scale = 0.5
     dropout_GRU = 0.1
     dropout_MLP = 0.1
     dropout_dedx = 0.1
-    epoch = 80
+    epoch = 200
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, mlp_hidden_size, dropout_GRU, dropout_dedx,dropout_MLP,adjustement_scale)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
@@ -183,7 +183,7 @@ if __name__ == "__main__":
 
     # --- Entraînement du modèle ---
     losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
-    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_filtred.pth")
+    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_filtred_V2b.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
@@ -244,8 +244,9 @@ if __name__ == "__main__":
     data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
     data_plot['Ih']=test_data["Ih"].to_list()
-    ML.plot_ML_inside(data_plot, False,True , False)
+    
 
-    ML.plot_diff_Ih(data_plot,True,True)
-    ML.std(data_plot,15,True)
+    
+    ML.plot_ML(data_plot, False,True , False)
+    ML.biais(data_plot,"track_eta",15)
     ML.loss_epoch(losses_epoch)

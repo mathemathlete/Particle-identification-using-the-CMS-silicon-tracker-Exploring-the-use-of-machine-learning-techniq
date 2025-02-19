@@ -9,70 +9,35 @@ from scipy.spatial.distance import mahalanobis, cdist
 from scipy import stats
 
 
-def plot_ML(path_ML,branch_of_interest, hist,hist_2, dev):
-    
-    data=cpf.import_data(path_ML, branch_of_interest)
+
+
+
+def plot_ML(data, hist,hist_2, dev):
+    data['Ih']=data['Ih']*1e-3
     np_th= np.array(id.bethe_bloch(938e-3,data['track_p']))
     np_pr = np.array(data['dedx'])
+    np_Ih=np.array(data['Ih'])
 
-    if hist==True:
-       
-        plt.figure(figsize=(12, 6))
+    plt.figure()
+    plt.subplot(1,2,1)
+    plt.hist2d(data["track_p"], data["Ih"], bins=500, cmap='viridis', label='Data')
+    plt.colorbar(label='Counts')
+    plt.xlabel(r'p')
+    plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.title('Beth-Bloch reconstruction with Ih formula')
+    plt.grid(True)
+    plt.legend()
 
-        # Histogramme des prédictions
-        plt.subplot(1, 2, 1)
-        plt.hist(np_pr, bins=50, alpha=0.7, label='Prédictions')
-        plt.xlabel('momentum')
-        plt.ylabel('N')
-        plt.title('Histogramme des Prédictions')
-        plt.legend()
+    plt.subplot(1,2,2)
+    plt.hist2d(data["track_p"], data["dedx"], bins=500, cmap='viridis', label='Data')
+    plt.colorbar(label='Counts')
+    plt.xlabel(r'p')
+    plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.title('Beth-Bloch reconstruction with Machine Learning')
+    plt.grid(True)
+    plt.legend()
+    plt.show() 
 
-        # Histogramme des momentums théoriques
-        plt.subplot(1, 2, 2)
-        plt.hist(np_th, bins=50, alpha=0.7, label='momentums Théoriques')
-        plt.xlabel('momentum')
-        plt.ylabel('N')
-        plt.title('Histogramme des momentums Théoriques')
-        plt.legend()
-
-        plt.tight_layout()
-
-    if hist_2==True:   
-
-            std_dev = np.std(np_pr - np_th)
-            plt.figure(figsize=(8, 8))
-            plt.hist(np_pr - np_th, bins=200,range=[-7.5,7.5], color='blue', alpha=0.7, label='1D Histogram')
-            plt.axvline(std_dev, color='red', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_dev:.2f}')
-            plt.axvline(-std_dev, color='red', linestyle='dashed', linewidth=1)
-            plt.xlabel('th-exp')
-            plt.ylabel('Counts')
-            plt.title('1D Histogram of Ecart between theory and prediction')
-            plt.legend()
-            plt.show()
-
-    if dev==True:
-    # --- Comparaison des prédictions et des momentums théoriques ---
-        plt.figure(figsize=(8, 8))
-        plt.subplot(1,2,1)
-        plt.hist2d(data['track_p'], np_pr-np_th, bins=500, cmap='viridis', label='Data')
-        plt.xlabel('momentum')
-        plt.ylabel('th-exp')
-        plt.title('Ecart entre théorique et prédite')
-        plt.legend()
-
-        p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-        plt.subplot(1,2,2)
-        plt.hist2d(data['track_p'],np_pr,bins=500, cmap='viridis', label='Data')
-        plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
-        plt.xscale('log')
-        plt.show()
-
-
-def plot_ML_inside(data, hist,hist_2, dev):
-    
-    np_th= np.array(id.bethe_bloch(938e-3,data['track_p']))
-    np_pr = np.array(data['dedx'])
-    np_Ih=np.array(data['Ih'])*1e-3
 
     if hist==True:
        
@@ -189,16 +154,16 @@ def plot_ratio(data):
     plt.tight_layout()
 
 def density(data,num_splits):
-    
+
     split_size = len(data) // num_splits
     data=data.sort_values(by='track_p')
     sub_data = [data.iloc[i * split_size:(i + 1) * split_size] for i in range(num_splits)] # split in n sample
     std_pred = [sub_df['dedx'].std() for sub_df in sub_data]
-    mpv_pred = [stats.mode(sub_df['dedx'], keepdims=True)[0][0] for sub_df in sub_data]
+    mean_pred = [sub_df['dedx'].mean() for sub_df in sub_data]
 
     std_Ih=[sub_df['Ih'].std() for sub_df in sub_data] # Calculate standard deviation for each sample
-    mpv_Ih = [stats.mode(sub_df['Ih'], keepdims=True)[0][0] for sub_df in sub_data]
-
+    mean_Ih = [sub_df['Ih'].mean() for sub_df in sub_data]
+    print(mean_Ih)
 
     mean_p= [sub_df['track_p'].mean() for sub_df in sub_data]
 
@@ -211,8 +176,7 @@ def density(data,num_splits):
     plt.figure(figsize=(12, 6))
     plt.subplot(1,2,1)
     plt.hist2d(data['track_p'],data['Ih'],bins=500,  cmap='viridis', label='Data')
-    sns.kdeplot(x=data['track_p'], y=data['Ih'], levels=[contour_level], colors="red", linewidths=2)
-    plt.errorbar(mean_p, mpv_Ih, yerr=std_Ih,  label='standard déviation', fmt='o', capsize=3, color='b')
+    plt.errorbar(mean_p, mean_Ih, yerr=std_Ih,  label='standard déviation', fmt='o', capsize=3, color='r')
     plt.xlabel('p in GeV/c')
     plt.ylabel(r'$-(\frac{dE}{dx}$)')
     plt.title('Beth-Bloch recontruction with Ih formula')
@@ -222,8 +186,7 @@ def density(data,num_splits):
 
     plt.subplot(1,2,2)
     plt.hist2d(data['track_p'],data['dedx'],bins=500,  cmap='viridis', label='Data')
-    sns.kdeplot(x=data['track_p'], y=data['dedx'], levels=[contour_level_2], colors="red", linewidths=2)
-    plt.errorbar(mean_p, mpv_pred, yerr=std_pred,  label='standard déviation', fmt='o', capsize=3, color='b')
+    plt.errorbar(mean_p, mean_pred, yerr=std_pred,  label='standard déviation', fmt='o', capsize=3, color='r')
     plt.xlabel('p in GeV/c')
     plt.ylabel(r'$-(\frac{dE}{dx}$)')
     plt.title('Beth-Bloch recontruction with Machine Learning')
@@ -386,7 +349,12 @@ def biais(data,biais,num_splits):
     
     plt.show()
 
+def correlation(data,branch_1,branch_2):
 
+    covariance = np.cov(data[branch_1], data[branch_2], bias=True)  # `bias=True` pour la version normale
+    print(covariance)
+    coef_correlation = np.corrcoef(data[branch_1], data[branch_2])
+    print(coef_correlation)
 
 if __name__ == "__main__":
     # parameter for ML_plot
@@ -398,7 +366,6 @@ if __name__ == "__main__":
     #plot_diff_Ih(path_test,path_Ih,True,True)
     branch_of_interest_1 = ['track_p','Ih','track_eta']
     data=cpf.import_data("Root_files/data_real_kaon.root",branch_of_interest_1)
-    print(data)
     data['Ih']=data['Ih']*1e-3
     data["dedx"]=data['Ih']*1.25
-    density(data,10)
+    correlation(data,'Ih','track_eta')
