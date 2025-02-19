@@ -15,6 +15,7 @@ from ray import tune
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
+from ray.tune import ExperimentAnalysis
 
 class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values, eta_values, Ih_values):
@@ -39,7 +40,7 @@ class ParticleDataset(Dataset):
 
 class LSTMModel(nn.Module):
     def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers,
-                 adjustement_scale, dropout_GRU, dropout_LSTM):
+                 adjustement_scale, dropout_GRU,dropout_dedx, dropout_LSTM,):
         super(LSTMModel, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
@@ -49,6 +50,7 @@ class LSTMModel(nn.Module):
             dropout=dropout_GRU if dedx_num_layers > 1 else 0.0
         )
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
+        self.dropout_dedx= nn.Dropout(dropout_dedx)
         
         self.adjust_lstm = nn.LSTM(
             input_size=5,
@@ -76,7 +78,7 @@ class LSTMModel(nn.Module):
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
-    lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
+    lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.float32)
     padded_sequences = pad_sequence(
         [d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) 
          for d in dedx_list],
@@ -142,6 +144,7 @@ def train_model_ray(config, checkpoint_dir=None):
         lstm_hidden_size=config["lstm_hidden_size"],
         lstm_num_layers=config["lstm_num_layers"],
         adjustement_scale=config["adjustment_scale"],
+        dropout_dedx=config["dropout_dedx"],
         dropout_GRU=config["dropout_GRU"],
         dropout_LSTM=config["dropout_LSTM"]
     ).to(device)
@@ -175,7 +178,7 @@ def train_model_ray(config, checkpoint_dir=None):
 if __name__ == "__main__":
     # --- Data Import ---
     time_start = timeit.default_timer()
-    file_name = "Root_Files/ML_training_LSTM_filtré.root"
+    file_name = "Root_Files/ML_training_LSTM.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]
@@ -210,6 +213,7 @@ if __name__ == "__main__":
         "lstm_hidden_size": tune.choice([32, 64, 128]),
         "lstm_num_layers": tune.choice([1, 2, 3]),
         "adjustment_scale": tune.uniform(0.1, 1.0),
+        "dropout_dedx" : tune.uniform(0.1,0.5),
         "dropout_GRU": tune.uniform(0.1, 0.5),
         "dropout_LSTM": tune.uniform(0.1, 0.5),
         "learning_rate": tune.loguniform(1e-4, 1e-2),   
@@ -219,17 +223,24 @@ if __name__ == "__main__":
     
     ray.init(ignore_reinit_error=True)
 
-    analysis = tune.run(
-        train_model_ray,
-        config=search_space,
-        num_samples=20,
-        scheduler=ASHAScheduler(metric="loss", mode="min"),
-        search_alg=OptunaSearch(metric="loss", mode="min"),
-        resources_per_trial={"cpu": 10, "gpu": 0.8},
-    )
+    # analysis = tune.run(
+    #     train_model_ray,
+    #     config=search_space,
+    #     num_samples=20,
+    #     scheduler=ASHAScheduler(metric="loss", mode="min"),
+    #     search_alg=OptunaSearch(metric="loss", mode="min"),
+    #     resources_per_trial={"cpu": 10, "gpu": 0.8},
+    # )
 
-    best_config = analysis.get_best_config(metric="loss", mode="min")
-    print("Best Hyperparameters:", best_config)
+
+    analysis = ExperimentAnalysis("C:/Users/Kamil/ray_results/train_model_ray_2025-02-14_10-21-50")  # Load experiment data
+
+    # Get the best trial based on a metric (e.g., lowest loss)
+    best_trial = analysis.get_best_trial(metric="loss", mode="min")  
+    best_config = best_trial.config  # Best hyperparameters
+
+    # best_config = analysis.get_best_config(metric="loss", mode="min")
+
 
     best_model = LSTMModel(
         dedx_hidden_size=best_config["dedx_hidden_size"],
@@ -248,7 +259,7 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.HuberLoss()
 
-    train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=40)
+    train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=5)
     torch.save(best_model.state_dict(), "best_model.pth")
 
     predictions, targets, test_loss = test_model(best_model, test_dataloader, criterion)

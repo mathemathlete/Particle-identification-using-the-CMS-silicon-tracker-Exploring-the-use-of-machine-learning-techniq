@@ -51,13 +51,13 @@ if __name__ == "__main__" :
     scaling = 1e3 # scaling factor for the Bethe-Bloch curve determined empirically
     branch_of_interest = ["dedx_charge", "dedx_pathlength", "track_p"]
     branch_of_interest_LSTM_in = ["dedx_charge", "dedx_pathlength", "track_p","track_eta","dedx_modulegeom"]
-    branch_of_interest_LSTM_out = ["dedx_pathlength","dedx_cluster", "track_p","track_eta", "Ih","ndedx"",dedx_modulegeom"]
+    branch_of_interest_LSTM_out = ["dedx_pathlength","dedx_cluster", "track_p","track_eta", "Ih","ndedx"]
 
-    # data = cpf.filtrage_dedx("Root_files/tree.root",["dedx_charge", "dedx_pathlength", "track_p","track_eta"],False,False,False)
-    # preparation_data2(data,"ML_training_LSTM_non_filtré.root")
+    data = cpf.filtrage_dedx("Root_files/tree.root",["dedx_charge", "dedx_pathlength", "track_p","track_eta"],False,False,False)
+    preparation_data2(data,"ML_training_LSTM_non_filtré.root",branch_of_interest_LSTM_out)
 
-    filtred_data = cpf.filtrage_dedx("Root_files/data.root",branch_of_interest_LSTM_in,True,True,True)
-    preparation_data2(filtred_data,"data_real_kaon.root",branch_of_interest_LSTM_out)
+    # filtred_data = cpf.filtrage_dedx("Root_files/data.root",branch_of_interest_LSTM_in,True,True,True)
+    # preparation_data2(filtred_data,"data_real_kaon.root",branch_of_interest_LSTM_out)
 
     # data_plot = cpf.filtrage_dedx("Root_Files/signal.root",["dedx_charge", "dedx_pathlength", "track_p","track_eta"],True,True,True)
     # preparation_data2(data_plot,"Signal_Plot.root",branch_of_interest_LSTM)

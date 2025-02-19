@@ -9,14 +9,22 @@ from sklearn.model_selection import train_test_split
 import timeit
 import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
+import os
+
+def collate_fn(batch):
+    ndedx_list, dedx_list, target_list, eta_list = zip(*batch)
+    lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
+    padded_sequences = pad_sequence([d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) for d in dedx_list], batch_first=True)
+    extras = torch.stack([torch.tensor([ndedx, eta], dtype=torch.float32) for ndedx, eta in zip(ndedx_list, eta_list)])
+    targets = torch.tensor(target_list, dtype=torch.float32)
+    return padded_sequences, lengths, targets, extras
 
 class ParticleDataset(Dataset):
     def __init__(self, ndedx_cluster, dedx_values, target_values,eta_values,Ih_values):
         self.ndedx_cluster = ndedx_cluster # int
         self.dedx_values = dedx_values # dedx values is an array of a variable size
-        self.target_values = target_values # int        
+        self.target_values = target_values # float
         self.eta_values = eta_values # float
-        self.Ih_values = Ih_values # float 
 
     def __len__(self):
         return len(self.dedx_values)
@@ -26,79 +34,74 @@ class ParticleDataset(Dataset):
         y = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
         z = torch.tensor(self.target_values[idx], dtype=torch.float32)
         u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
-        o = torch.tensor(self.Ih_values[idx], dtype=torch.float32)
-        return x, y, z , u, o 
+        return x, y, z ,u
 
 class LSTMModel(nn.Module):
-    def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers):
+    def __init__(self, dedx_hidden_size, dedx_num_layers, mlp_hidden_size, dropout_GRU, dropout_dedx,dropout_MLP, adjustement_scale):
         super(LSTMModel, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
             hidden_size=dedx_hidden_size,
             num_layers=dedx_num_layers,
             batch_first=True,
-            dropout=0.18 if dedx_num_layers > 1 else 0.0
+            dropout=dropout_GRU if dedx_num_layers > 1 else 0.0
         )
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
-        
-        self.adjust_lstm = nn.LSTM(
-            input_size=4,
-            hidden_size=lstm_hidden_size,
-            num_layers=lstm_num_layers,
-            batch_first=True,
-            dropout=0.28 if lstm_num_layers > 1 else 0.0
-        )
-        self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
+        self.dropout_dedx = nn.Dropout(dropout_dedx)
+
+        # Instead of an LSTM branch, use a simple MLP
+        self.adjust_fc_hidden = nn.Linear(3, mlp_hidden_size)  # 3 = 1 (dedx_pred) + 2 (extras)
+        self.adjust_fc_output = nn.Linear(mlp_hidden_size, 1)
+        self.dropout_MLP = nn.Dropout(dropout_MLP)
         self.relu = nn.ReLU()
-        self.adjustment_scale = 0.64
+        
+        # Adjustment scale remains as a multiplier
+        self.adjustment_scale = adjustement_scale
 
     def forward(self, dedx_seq, lengths, extras):
+        # Process dedx_seq with GRU
         packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
-        packed_out, hidden = self.dedx_rnn(packed_seq)
+        _, hidden = self.dedx_rnn(packed_seq)
         hidden_last = hidden[-1]
-        dedx_pred = self.dedx_fc(hidden_last)
+        dedx_pred = self.relu(self.dropout_dedx(self.dedx_fc(hidden_last)))
         
-        lstm_input = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
-        lstm_out, (h_n, c_n) = self.adjust_lstm(lstm_input)
-        lstm_hidden = h_n[-1]
-        adjustment = self.adjust_fc(lstm_hidden)
+        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 2]) → [batch_size, 43
+        combined = torch.cat([dedx_pred, extras], dim=1)
+        x = self.adjust_fc_hidden(combined)
+        adjustment = self.dropout_MLP(self.adjust_fc_output(x))
         
-        return dedx_pred + self.adjustment_scale * adjustment
+        final_value = dedx_pred + self.adjustment_scale * adjustment
+        return final_value
 
-def collate_fn(batch):
-    ndedx_list, dedx_list, target_list, eta_list, Ih_list = zip(*batch)
-    lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
-    padded_sequences = pad_sequence([d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) for d in dedx_list], batch_first=True)
-    extras = torch.stack([torch.tensor([ndedx, eta, Ih], dtype=torch.float32) for ndedx, eta, Ih in zip(ndedx_list, eta_list, Ih_list)])
-    targets = torch.tensor(target_list, dtype=torch.float32)
-    return padded_sequences, lengths, targets, extras
-
-def train_model(model, dataloader, criterion, optimizer, scheduler, epochs,device):
+def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, device):
+    model.to(device)  # Ensure model is on GPU
     loss_array = []
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
     start = timeit.default_timer()
     for epoch in range(epochs):
-        epoch_loss = 0 
+        epoch_loss = 0
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
         model.train()
-        for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):  # Expect 3 values
-            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
-            outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
-            outputs = outputs.squeeze()
-            targets = targets.squeeze()
-            loss = criterion(outputs, targets)
-            # Backpropagation
 
+        for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):
+            # Move data to GPU
+            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+
+            optimizer.zero_grad()  # Reset gradients
+            outputs = model(inputs, lengths, extras).squeeze()
+
+            loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
 
             epoch_loss += loss.item()
             if batch % 100 == 0:
-                loss, current = loss.item(), batch * batch_size + len(inputs)
+                loss_value = loss.item()
+                current = batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
-                print(f"loss: {loss:>7f} ({percentage:.2f}%)")
+                print(f"Loss: {loss_value:>7f} ({percentage:.2f}%)")
+        
         scheduler.step(epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
         loss_array.append(loss.item())
@@ -106,7 +109,9 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs,devic
         elapsed_time = end - start
         minutes, seconds = divmod(elapsed_time, 60)
         print(f"Execution time for 1 epoch : {elapsed_time:.2f} seconds ({int(minutes)} min {seconds:.2f} sec)")
+
     return loss_array
+
         
 def test_model(model, dataloader, criterion,device):
     predictions = []
@@ -132,10 +137,10 @@ def test_model(model, dataloader, criterion,device):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
-    data = pd.DataFrame()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
+    file_name = "Root_Files/ML_training_LSTM.root"
+    data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
         tree = file[key]
@@ -147,45 +152,45 @@ if __name__ == "__main__":
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
     eta_values_train =  train_data["track_eta"].to_list()
-    Ih_values_train = train_data["Ih"].to_list()
-    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,eta_values_train,Ih_values_train)
-    dataloader = DataLoader(dataset, batch_size=512, shuffle=True, collate_fn=collate_fn)
+    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,eta_values_train)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
-    p_values_test = test_data["track_p"].to_list()
     eta_values_test =  test_data["track_eta"].to_list()
-    Ih_values_test = test_data["Ih"].to_list()
-    test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
-    test_dataloader = DataLoader(test_dataset, batch_size=512, collate_fn=collate_fn)
+    test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test)
+    test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
-    # --- Initialisation du modèle, fonction de perte et optimiseur ---
+# --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
-    lstm_hidden_size = 64
-    lstm_num_layers = 2
+    mlp_hidden_size = 256
+    adjustement_scale = 0.5
+    dropout_GRU = 0.1
+    dropout_MLP = 0.1
+    dropout_dedx = 0.1
+    epoch = 80
 
-    model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
-    model = model.to(device)
+    model = LSTMModel(dedx_hidden_size, dedx_num_layers, mlp_hidden_size, dropout_GRU, dropout_dedx,dropout_MLP,adjustement_scale)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-6)
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     
     # Learning rate scheduler: reduce LR on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, 10 , device)
-    torch.save(model.state_dict(), "model_LSTM_sans_p_avec_Ih_10epoch.pth")
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_filtred.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion,device)
+    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion, device)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
@@ -236,9 +241,9 @@ if __name__ == "__main__":
     # plt.show()
 
     data_plot=pd.DataFrame()
-    data_plot['track_p']=p_values_test
+    data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
-    data_plot['Ih']=Ih_values_test
+    data_plot['Ih']=test_data["Ih"].to_list()
     ML.plot_ML_inside(data_plot, False,True , False)
 
     ML.plot_diff_Ih(data_plot,True,True)
