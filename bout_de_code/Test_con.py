@@ -126,3 +126,105 @@ if __name__ == "__main__":
 
     # Affichage du graphique
     plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def density(data,num_splits):
+
+    density_Ih = np.sort(data['Ih'])
+    cumulative_density = np.cumsum(density_Ih) / np.sum(density_Ih)
+    threshold_Ih = density_Ih[np.searchsorted(cumulative_density, 0.9)]  # Trouver la densité qui couvre 90%
+    contour_level = np.mean(density_Ih >= threshold_Ih)
+
+    density_ML = np.sort(data['dedx'])
+    cumulative_density_2 = np.cumsum(density_ML) / np.sum(density_ML)
+    threshold_ML = density_ML[np.searchsorted(cumulative_density_2, 0.9)]  # Trouver la densité qui couvre 90%
+    contour_level_2 = np.mean(density_ML >= threshold_ML)
+
+    split_size = len(data) // num_splits
+    data=data.sort_values(by='track_p')
+    sub_data = [data.iloc[i * split_size:(i + 1) * split_size] for i in range(num_splits)] # split in n sample
+    std_pred = [sub_df['dedx'].std() for sub_df in sub_data]
+    mpv_pred = [stats.mode(sub_df['dedx'], keepdims=True)[0][0] for sub_df in sub_data]
+
+    std_Ih=[sub_df['Ih'].std() for sub_df in sub_data] # Calculate standard deviation for each sample
+    mpv_Ih = [stats.mode(sub_df['Ih'], keepdims=True)[0][0] for sub_df in sub_data]
+
+
+    mean_p= [sub_df['track_p'].mean() for sub_df in sub_data]
+
+    # std_data = pd.DataFrame()
+    # std_data['std']=std_pred
+    # std_data['std_Ih']=std_Ih
+    # std_data['track_p']=mean_p
+  
+
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1,2,1)
+    plt.hist2d(data['track_p'],data['Ih'],bins=500,  cmap='viridis', label='Data')
+    sns.kdeplot(x=data['track_p'], y=data['Ih'], levels=[contour_level], colors="red", linewidths=2)
+    plt.errorbar(mean_p, mpv_Ih, yerr=std_Ih,  label='standard déviation', fmt='o', capsize=3, color='b')
+    plt.xlabel('p in GeV/c')
+    plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.title('Beth-Bloch recontruction with Ih formula')
+    plt.legend()
+
+
+
+    plt.subplot(1,2,2)
+    plt.hist2d(data['track_p'],data['dedx'],bins=500,  cmap='viridis', label='Data')
+    sns.kdeplot(x=data['track_p'], y=data['dedx'], levels=[contour_level_2], colors="red", linewidths=2)
+    plt.errorbar(mean_p, mpv_pred, yerr=std_pred,  label='standard déviation', fmt='o', capsize=3, color='b')
+    plt.xlabel('p in GeV/c')
+    plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.title('Beth-Bloch recontruction with Machine Learning')
+    plt.legend()
+
+    plt.show()

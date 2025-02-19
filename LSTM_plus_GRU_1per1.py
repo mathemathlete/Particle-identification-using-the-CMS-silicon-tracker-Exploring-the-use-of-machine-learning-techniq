@@ -149,7 +149,7 @@ if __name__ == "__main__":
     eta_values_train =  train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
     dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
@@ -159,25 +159,25 @@ if __name__ == "__main__":
     eta_values_test =  test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
-    test_dataloader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
+    test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
     # --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
-    lstm_hidden_size = 64
+    lstm_hidden_size = 128
     lstm_num_layers = 2
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-6)
+    optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
     
     # Learning rate scheduler: reduce LR on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=1)
-    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=10)
+    # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
@@ -238,8 +238,8 @@ if __name__ == "__main__":
     data_plot['track_p']=p_values_test
     data_plot['dedx']=predictions
     data_plot['Ih']=Ih_values_test
-    ML.plot_ML_inside(data_plot, False,True , False)
+    #ML.plot_ML_inside(data_plot, False,True , False)
 
-    ML.plot_diff_Ih(data_plot,True,True)
+    # ML.plot_diff_Ih(data_plot,True,True)
     ML.std(data_plot,15,True)
-    ML.loss_epoch(losses_epoch)
+    # ML.loss_epoch(losses_epoch)
