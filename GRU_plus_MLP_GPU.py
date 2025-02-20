@@ -41,7 +41,7 @@ class ParticleDataset(Dataset):
         return x, y, z , t , u, o 
 
 class LSTMModel(nn.Module):
-    def __init__(self, dedx_hidden_size, dedx_num_layers, mlp_hidden_size, dropout_GRU, dropout_dedx,dropout_MLP, adjustement_scale):
+    def __init__(self, dedx_hidden_size, dedx_num_layers, mlp_hidden_size1,mlp_hidden_size2,mlp_hidden_size3, dropout_GRU, dropout_dedx,dropout_MLP, adjustement_scale):
         super(LSTMModel, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
@@ -54,8 +54,15 @@ class LSTMModel(nn.Module):
         self.dropout_dedx = nn.Dropout(dropout_dedx)
 
         # Instead of an LSTM branch, use a simple MLP
-        self.adjust_fc_hidden = nn.Linear(5, mlp_hidden_size)  # 5 = 1 (dedx_pred) + 4 (extras)
-        self.adjust_fc_output = nn.Linear(mlp_hidden_size, 1)
+        self.adjust_mlp = nn.Sequential(
+            nn.Linear(5, mlp_hidden_size1),  # Input: 4 (dedx_pred + extras), Output: mlp_hidden_size1
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_size1, mlp_hidden_size2),  # Output: mlp_hidden_size2
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_size2, mlp_hidden_size3),  # Output: mlp_hidden_size3
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_size3, 1)  # Final output
+        )
         self.dropout_MLP = nn.Dropout(dropout_MLP)
         self.relu = nn.ReLU()
         
@@ -69,10 +76,10 @@ class LSTMModel(nn.Module):
         hidden_last = hidden[-1]
         dedx_pred = self.relu(self.dropout_dedx(self.dedx_fc(hidden_last)))
         
-        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 4]) → [batch_size, 5]
+        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 3]) → [batch_size, 4]
         combined = torch.cat([dedx_pred, extras], dim=1)
-        x = self.adjust_fc_hidden(combined)
-        adjustment = self.dropout_MLP(self.adjust_fc_output(x))
+        x = self.adjust_mlp(combined)
+        adjustment = self.dropout_MLP(x)
         
         final_value = dedx_pred + self.adjustment_scale * adjustment
         return final_value
@@ -94,7 +101,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
 
             optimizer.zero_grad()  # Reset gradients
             outputs = model(inputs, lengths, extras).squeeze()
-
+            targets= targets.squeeze()
             loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
@@ -174,15 +181,17 @@ if __name__ == "__main__":
 # --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
-    mlp_hidden_size = 256
+    mlp_hidden_size1 = 500
+    mlp_hidden_size2 = 200
+    mlp_hidden_size3 = 100  
     adjustement_scale = 0.5
     dropout_GRU = 0.1
     dropout_MLP = 0.1
     dropout_dedx = 0.1
-    epoch = 80
+    epoch = 200
 
-    model = LSTMModel(dedx_hidden_size, dedx_num_layers, mlp_hidden_size, dropout_GRU, dropout_dedx,dropout_MLP,adjustement_scale)
-    criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
+    model = LSTMModel(dedx_hidden_size, dedx_num_layers, mlp_hidden_size1,mlp_hidden_size2,mlp_hidden_size3, dropout_GRU, dropout_dedx,dropout_MLP,adjustement_scale)
+    criterion = nn.MSELoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     
@@ -191,7 +200,7 @@ if __name__ == "__main__":
 
     # --- Entraînement du modèle ---
     losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
-    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_filtred.pth")
+    torch.save(model.state_dict(), "model_LSTM_200_epoch_15000_unfiltred_V2.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 

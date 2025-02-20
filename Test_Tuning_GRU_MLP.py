@@ -158,9 +158,9 @@ def train_model_ray(config, checkpoint_dir=None):
         activation=config["activation"]  # Use selected activation function
     ).to(device)
     
-    criterion = nn.HuberLoss()
+    criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=config["decrease_factor_scheduler"])
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5)
     
     dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values, p_values_train, eta_values_train, Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True, collate_fn=collate_fn)
@@ -214,19 +214,17 @@ if __name__ == "__main__":
     
     # --- Hyperparameter Initialization ---
     search_space = {
-        "dedx_hidden_size": tune.choice([64, 128, 256, 512, 1024]),
-        "dedx_num_layers": tune.choice([1, 2, 3]),
-        "mlp_hidden_size": tune.choice([32, 64, 128,256,512]),
+        "dedx_hidden_size": tune.choice([256, 512, 1024]),
+        "dedx_num_layers": tune.choice([2, 3]),
+        "mlp_hidden_size": tune.choice([64, 128,256,512]),
         "dropout_dedx" : tune.uniform(0.1,0.5),
         "dropout_GRU": tune.uniform(0.1, 0.5),
         "dropout_MLP": tune.uniform(0.1, 0.5),
         "adjustment_scale": tune.uniform(0.1, 1.0),
         "learning_rate": tune.loguniform(1e-4, 1e-2),   
         "weight_decay": tune.loguniform(1e-6, 1e-3),    
-        "decrease_factor_scheduler": tune.choice([0.5, 0.1]),
         "batch_size" : tune.choice([16,32,64]),
         "activation": tune.choice(["relu", "leaky_relu", "elu", "tanh", "sigmoid"])
-
     }
 
     ray.init(ignore_reinit_error=True)
@@ -234,7 +232,7 @@ if __name__ == "__main__":
     analysis = tune.run(
         train_model_ray,
         config=search_space,
-        num_samples=20,
+        num_samples=10,
         scheduler=ASHAScheduler(metric="loss", mode="min"),
         search_alg=OptunaSearch(metric="loss", mode="min"),
         resources_per_trial={"cpu": 10, "gpu": 0.8},
