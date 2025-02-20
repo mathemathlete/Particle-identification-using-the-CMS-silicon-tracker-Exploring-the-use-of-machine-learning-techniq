@@ -115,7 +115,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
         
         scheduler.step(epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
-        loss_array.append(loss.item())
+        loss_array.append(epoch_loss/len(dataloader))
         end = timeit.default_timer()
         elapsed_time = end - start
         minutes, seconds = divmod(elapsed_time, 60)
@@ -130,7 +130,7 @@ def test_model(model, dataloader, criterion,device):
     test_loss = 0.0
     with torch.no_grad():  # Désactiver la grad pour l'évaluation
         for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
-            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            # inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
             targets = targets.squeeze()  # Ensure targets are 1-dimensional
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     torch.save(model.state_dict(), "model_LSTM_200_epoch_15000_unfiltred_V2.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
-    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
+    # model.load_state_dict(torch.load("model_LSTM_40_epoch_15000_V1.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
@@ -261,8 +261,6 @@ if __name__ == "__main__":
     data_plot['track_p']=p_values_test
     data_plot['dedx']=predictions
     data_plot['Ih']=Ih_values_test
-    ML.plot_ML_inside(data_plot, False,True , False)
-
-    ML.plot_diff_Ih(data_plot,True,True)
-    ML.std(data_plot,15,True)
-    ML.loss_epoch(losses_epoch)
+    ML.plot_ML(data_plot, False,True , False)
+    ML.biais(data_plot,"track_eta",15)
+    #ML.loss_epoch(losses_epoch)
