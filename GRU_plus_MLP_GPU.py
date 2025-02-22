@@ -10,6 +10,8 @@ import timeit
 import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 import os
+import matplotlib.pyplot as plt
+import numpy as np 
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
@@ -40,9 +42,9 @@ class ParticleDataset(Dataset):
         o = torch.tensor(self.Ih_values[idx], dtype=torch.float32)
         return x, y, z , t , u, o 
 
-class LSTMModel(nn.Module):
+class MLP_V1(nn.Module):
     def __init__(self, dedx_hidden_size, dedx_num_layers, mlp_hidden_size1,mlp_hidden_size2,mlp_hidden_size3, dropout_GRU, dropout_dedx,dropout_MLP, adjustement_scale):
-        super(LSTMModel, self).__init__()
+        super(MLP_V1, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
             hidden_size=dedx_hidden_size,
@@ -89,8 +91,9 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
     loss_array = []
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
-    start = timeit.default_timer()
+    start_global = timeit.default_timer()
     for epoch in range(epochs):
+        start_epoch = timeit.default_timer()
         epoch_loss = 0
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
         model.train()
@@ -112,19 +115,24 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
                 current = batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
                 print(f"Loss: {loss_value:>7f} ({percentage:.2f}%)")
-        
-        scheduler.step(epoch_loss)
+        mean_epoch_loss = epoch_loss / len(dataloader)
+        scheduler.step(mean_epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
-        loss_array.append(epoch_loss/len(dataloader))
+        loss_array.append(mean_epoch_loss)
+        print(f"Mean Epoch Loss : {mean_epoch_loss}")
         end = timeit.default_timer()
-        elapsed_time = end - start
-        minutes, seconds = divmod(elapsed_time, 60)
-        print(f"Execution time for 1 epoch : {elapsed_time:.2f} seconds ({int(minutes)} min {seconds:.2f} sec)")
-
+        elapsed_time_epoch = end - start_epoch
+        elapsed_time_global = end - start_global
+        hours_epoch, remainder_epoch = divmod(elapsed_time_epoch, 3600)
+        minutes_epoch, seconds_epoch = divmod(remainder_epoch, 60)
+        hours_global, remainder_global = divmod(elapsed_time_global, 3600)
+        minutes_global, seconds_global = divmod(remainder_global, 60)
+        print(f"Execution time for epoch {epoch+1}: {int(hours_epoch)} hr {int(minutes_epoch)} min {seconds_epoch:.2f} sec")
+        print(f"Total execution time: {int(hours_global)} hr {int(minutes_global)} min {seconds_global:.2f} sec")
     return loss_array
 
         
-def test_model(model, dataloader, criterion,device):
+def test_model(model, dataloader, criterion):
     predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
     test_loss = 0.0
@@ -148,7 +156,7 @@ def test_model(model, dataloader, criterion,device):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
     file_name = "Root_Files/ML_training_LSTM.root"
     data = pd.DataFrame()
@@ -190,7 +198,7 @@ if __name__ == "__main__":
     dropout_dedx = 0.1
     epoch = 200
 
-    model = LSTMModel(dedx_hidden_size, dedx_num_layers, mlp_hidden_size1,mlp_hidden_size2,mlp_hidden_size3, dropout_GRU, dropout_dedx,dropout_MLP,adjustement_scale)
+    model = MLP_V1(dedx_hidden_size, dedx_num_layers, mlp_hidden_size1,mlp_hidden_size2,mlp_hidden_size3, dropout_GRU, dropout_dedx,dropout_MLP,adjustement_scale)
     criterion = nn.MSELoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
@@ -199,15 +207,15 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
-    torch.save(model.state_dict(), "model_LSTM_200_epoch_15000_unfiltred_V2.pth")
+    # losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+    # torch.save(model.state_dict(), "model_LSTM_200_epoch_15000_unfiltred_V2.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
-    # model.load_state_dict(torch.load("model_LSTM_40_epoch_15000_V1.pth", weights_only=True)) 
+    model.load_state_dict(torch.load("model_LSTM_200_epoch_15000_unfiltred_V1.pth", weights_only=True,map_location=torch.device('cpu'))) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion, device)
+    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
@@ -215,52 +223,52 @@ if __name__ == "__main__":
     minutes, seconds = divmod(remainder, 60)
     print(f"Execution time: {elapsed_time:.2f} seconds ({int(hours)} h {int(minutes)} min {seconds:.2f} sec)")
 
-    # # --- Création des histogrammes ---
-    # plt.figure(figsize=(12, 6))
+    # --- Création des histogrammes ---
+    plt.figure(figsize=(12, 6))
 
-    # # Histogramme des prédictions
-    # plt.subplot(1, 2, 1)
-    # plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('N')
-    # plt.xlim(4,10)
-    # plt.ylim(0, 2000)
-    # plt.title('Histogramme des Prédictions')
-    # plt.legend()
+    # Histogramme des prédictions
+    plt.subplot(1, 2, 1)
+    plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
+    plt.xlabel('Valeur')
+    plt.ylabel('N')
+    plt.xlim(4,10)
+    plt.ylim(0, 2000)
+    plt.title('Histogramme des Prédictions')
+    plt.legend()
 
-    # # Histogramme des valeurs théoriques
-    # plt.subplot(1, 2, 2)
-    # plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('N')
-    # plt.title('Histogramme des Valeurs Théoriques')
-    # plt.xlim(4,10)
-    # plt.ylim(0, 2000)
-    # plt.legend()
-    # plt.tight_layout()
+    # Histogramme des valeurs théoriques
+    plt.subplot(1, 2, 2)
+    plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
+    plt.xlabel('Valeur')
+    plt.ylabel('N')
+    plt.title('Histogramme des Valeurs Théoriques')
+    plt.xlim(4,10)
+    plt.ylim(0, 2000)
+    plt.legend()
+    plt.tight_layout()
 
-    # np_th= np.array(targets)
-    # np_pr = np.array(predictions)
+    np_th= np.array(targets)
+    np_pr = np.array(predictions)
 
-    # # --- Comparaison des prédictions et des valeurs théoriques ---
-    # plt.figure(figsize=(8, 8))
-    # plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('th-exp')
-    # plt.title('Ecart entre théorique et prédite')
-    # plt.legend()
+    # --- Comparaison des prédictions et des valeurs théoriques ---
+    plt.figure(figsize=(8, 8))
+    plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
+    plt.xlabel('Valeur')
+    plt.ylabel('th-exp')
+    plt.title('Ecart entre théorique et prédite')
+    plt.legend()
 
-    # p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    # plt.figure(figsize=(8, 8))
-    # plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
-    # plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
-    # plt.xscale('log')
-    # plt.show()
+    p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
+    plt.figure(figsize=(8, 8))
+    plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
+    plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
+    plt.xscale('log')
+    plt.show()
 
-    data_plot=pd.DataFrame()
-    data_plot['track_p']=p_values_test
-    data_plot['dedx']=predictions
-    data_plot['Ih']=Ih_values_test
-    ML.plot_ML(data_plot, False,True , False)
-    ML.biais(data_plot,"track_eta",15)
+    # data_plot=pd.DataFrame()
+    # data_plot['track_p']=p_values_test
+    # data_plot['dedx']=predictions
+    # data_plot['Ih']=Ih_values_test
+    # ML.plot_ML(data_plot, False,True , False)
+    # ML.biais(data_plot,"track_eta",15)
     #ML.loss_epoch(losses_epoch)
