@@ -6,19 +6,19 @@ by incorporating additional information, such as the path length of particles wi
 ## Structure of the data
 
 The simulated and real acquired data are contained in several root files that are converted in Dataframe with uproot , that have the following structure :
-    - *nstrips* contains a column in order to check eventually bugs during the treatment ( the different lines are empty in our cases)
-    - *InstLumi* contains a 'float' describing the instant luminosity of the collision.
-    - *npv* contains a 'int' of the number of primary vertex of the collision.
-    - *dedx_charge* contains for each lines a variable size 'int' array that contains the energy (in *eV*) collected in the different detectors
-    - *dedx_pathlength* contains for each lines a variable size 'float' array that contains the spacial distance (in *cm*) travelled in the different detectors.
-    - *dedx_detid* contains a variable size 'int' array  about the id of the detector.
-    - *dedx_isstrip* contains a variable size 'bool' array. If the value is *False*, the detection was made by a pixel. If the value is *True* the detection was made by a strip. The reliable informations considered here will be data collected by strip.
-    - *dedx_insideTkmod* contains a variable size 'bool' array. If the value is *False*, the detection was made in a detector located in the border, which can imply some undetected energy. If the value is *True*, this problem isn't expected to occur, meaning the energy detection is likely more reliable.
-    - *dedx_modulegeom* contains a variable size 'int' array about the informations about the geometry of the detector.
-    - *dedx_shape* isn't considered in our entire project
-    - *dedx_clusclean* contains a variable size 'bool' array. If the value is *False*, the cluster informations may not be related to a particle but some noise that could be irrelevant. 
-    - *track_p* contains a 'float32' that gives the impulsion of the collision
-    - *track_eta* contains a 'float32' that gives the rapidity of the collision
+- *nstrips* contains a column in order to check eventually bugs during the treatment ( the different lines are empty in our cases)
+- *InstLumi* contains a 'float' describing the instant luminosity of the collision.
+- *npv* contains a 'int' of the number of primary vertex of the collision.
+- *dedx_charge* contains for each lines a variable size 'int' array that contains the energy (in *eV*) collected in the different detectors
+- *dedx_pathlength* contains for each lines a variable size 'float' array that contains the spacial distance (in *cm*) travelled in the different detectors.
+- *dedx_detid* contains a variable size 'int' array  about the id of the detector.
+- *dedx_isstrip* contains a variable size 'bool' array. If the value is *False*, the detection was made by a pixel. If the value is *True* the detection was made by a strip. The reliable informations considered here will be data collected by strip.
+- *dedx_insideTkmod* contains a variable size 'bool' array. If the value is *False*, the detection was made in a detector located in the border, which can imply some undetected energy. If the value is *True*, this problem isn't expected to occur, meaning the energy detection is likely more reliable.
+- *dedx_modulegeom* contains a variable size 'int' array about the informations about the geometry of the detector.
+- *dedx_shape* isn't considered in our entire project
+- *dedx_clusclean* contains a variable size 'bool' array. If the value is *False*, the cluster informations may not be related to a particle but some noise that could be irrelevant. 
+- *track_p* contains a 'float32' that gives the impulsion of the collision
+- *track_eta* contains a 'float32' that gives the rapidity of the collision
 
 ## Structure of the project 
 
@@ -43,7 +43,7 @@ Here is the following structure of the code :
             - Extras : *N_hit*, *eta*
         - V3 : 
             - Input : [dedx,modulegeom,pathlengh]
-            - Extras : *N_hit*, *eta*,*I_h* 
+            - Extras : *N_hit*, *eta*,*I_h*   
     NB : dedx contains the values of __dedx_charge__ divided by the values of __dedx_pathlengh__ 
     : ML_V0 contains an old ML with only two Linear Layers
     When a training is ran, at the end of a run , the model is stored in a .pth file that has this template:
