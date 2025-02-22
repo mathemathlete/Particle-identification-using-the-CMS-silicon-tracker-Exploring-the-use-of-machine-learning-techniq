@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 import timeit
 import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
-import os
+import Creation_plus_filtrage as cpf
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, eta_list = zip(*batch)
@@ -146,18 +146,39 @@ def test_model(model, dataloader, criterion,device):
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, targets, test_loss
 
+
+def start_ML(model,file_model, train,test):
+    if train==True:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+        torch.save(model.state_dict(), model)
+        return losses_epoch
+   
+    if test==True:
+        model.load_state_dict(torch.load(file_model, weights_only=True)) 
+        print("Evaluation du modèle...")
+        predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
+        return predictions, targets, test_loss
+
+
+
+
+
+
+
+
+
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
     file_name = "Root_Files/ML_training_LSTM.root"
-    data = pd.DataFrame()
-    with uproot.open(file_name) as file:
-        key = file.keys()[0]  # open the first Ttree
-        tree = file[key]
-        data = tree.arrays(["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"], library="pd") # open data with array from numpy
-        train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
+    branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
+    file_model = "model_LSTM_40_epoch_15000_V2a.pth"
+
+    data=cpf.import_data(file_name,branch_of_interest)
+    train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
+
 
     # --- Préparer les données de l'entrainement ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
@@ -191,22 +212,16 @@ if __name__ == "__main__":
 
     model = LSTM_V2b(dedx_hidden_size, dedx_num_layers, lstm_hidden_size,lstm_num_layers, dropout_GRU, dropout_dedx,dropout_LSTM,adjustment_scale)
     criterion = nn.MSELoss() # Si pas une grosse influence des outliers
+
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     
     # Learning rate scheduler: reduce LR on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
-    # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
-    # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_filtred_V2b.pth")
-
-    # --- Sauvegarde et Chargement du modèle ---
-    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
-
     # --- Évaluation du modèle ---
-    print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion, device)
+    predictions ,targets, test_loss = start_ML(model,file_model, False,True)
+
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
@@ -214,48 +229,8 @@ if __name__ == "__main__":
     minutes, seconds = divmod(remainder, 60)
     print(f"Execution time: {elapsed_time:.2f} seconds ({int(hours)} h {int(minutes)} min {seconds:.2f} sec)")
 
-    # # --- Création des histogrammes ---
-    # plt.figure(figsize=(12, 6))
-
-    # # Histogramme des prédictions
-    # plt.subplot(1, 2, 1)
-    # plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('N')
-    # plt.xlim(4,10)
-    # plt.ylim(0, 2000)
-    # plt.title('Histogramme des Prédictions')
-    # plt.legend()
-
-    # # Histogramme des valeurs théoriques
-    # plt.subplot(1, 2, 2)
-    # plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('N')
-    # plt.title('Histogramme des Valeurs Théoriques')
-    # plt.xlim(4,10)
-    # plt.ylim(0, 2000)
-    # plt.legend()
-    # plt.tight_layout()
-
-    # np_th= np.array(targets)
-    # np_pr = np.array(predictions)
-
-    # # --- Comparaison des prédictions et des valeurs théoriques ---
-    # plt.figure(figsize=(8, 8))
-    # plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('th-exp')
-    # plt.title('Ecart entre théorique et prédite')
-    # plt.legend()
-
-    # p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    # plt.figure(figsize=(8, 8))
-    # plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
-    # plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
-    # plt.xscale('log')
-    # plt.show()
-
+    # --- Création des histogrammes ---
+    
     data_plot=pd.DataFrame()
     data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
@@ -265,4 +240,4 @@ if __name__ == "__main__":
     
     ML.plot_ML(data_plot, False,True , False)
     ML.biais(data_plot,"track_eta",15)
-    ML.loss_epoch(losses_epoch)
+    ML.loss_epoch(start_ML(model,file_model, True, False))
