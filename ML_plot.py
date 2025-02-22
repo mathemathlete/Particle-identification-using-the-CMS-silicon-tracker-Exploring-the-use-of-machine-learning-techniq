@@ -3,7 +3,6 @@ import numpy as np
 import Creation_plus_filtrage as cpf
 import Identification as id
 import awkward as ak
-import seaborn as sns
 import pandas as pd
 from scipy.spatial.distance import mahalanobis, cdist
 from scipy import stats
@@ -12,8 +11,7 @@ from scipy import stats
 
 
 
-def plot_ML(data, hist,hist_2, dev):
-    data['Ih']=data['Ih']*1e-3
+def plot_ML(data,ylim, hist,hist_2, dev):
     np_th= np.array(id.bethe_bloch(938e-3,data['track_p']))
     np_pr = np.array(data['dedx'])
     np_Ih=np.array(data['Ih'])
@@ -24,6 +22,7 @@ def plot_ML(data, hist,hist_2, dev):
     plt.colorbar(label='Counts')
     plt.xlabel(r'p')
     plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.ylim(ylim)
     plt.title('Beth-Bloch reconstruction with Ih formula')
     plt.grid(True)
     plt.legend()
@@ -33,6 +32,7 @@ def plot_ML(data, hist,hist_2, dev):
     plt.colorbar(label='Counts')
     plt.xlabel(r'p')
     plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.ylim(ylim)
     plt.title('Beth-Bloch reconstruction with Machine Learning')
     plt.grid(True)
     plt.legend()
@@ -120,40 +120,32 @@ def plot_ML(data, hist,hist_2, dev):
 
 
 
-def plot_ratio(data):
+def plot_ratio(data,m_part,y_lim):
 
-    data['Ih']=data['Ih']*1e-3
-    data['ratio_Ih']=data['Ih']/id.bethe_bloch(938e-3,np.array(data))
-    mpv_Ih = stats.mode(data['ratio_Ih'], keepdims=True)[0][0]
-    std_1=data['ratio'].std()
-
-    data['ratio_pred']=data['dedx']/id.bethe_bloch(938e-3,np.array(data))
-    mpv_pred = stats.mode(data['ratio_pred'], keepdims=True)[0][0]
-    std_2=data['ratio_pred'].std()
+    data['ratio_Ih']=data['Ih']/id.bethe_bloch(m_part,np.array(data['track_p']))
+    data['ratio_pred']=data['dedx']/id.bethe_bloch(m_part,np.array(data['track_p']))
+   
 
     plt.figure(1,figsize=(12, 6))
     plt.subplot(1,2,1)
     plt.hist(data['ratio_Ih'], bins=100, alpha=0.7, label='Ih/th')
-    plt.axvline(mpv_Ih+std_1, color='blue', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_1:.2f}\n mean={mpv_Ih:.2f}')
-    plt.axvline(mpv_Ih-std_1, color='blue', linestyle='dashed', linewidth=1)
     plt.xlabel('ratio between Ih and theorie')    
     plt.ylabel('N')
-    plt.ylim([0,850])
-    plt.title('Histogram of ratio between prediction and theorie')
+    plt.ylim(y_lim)
+    plt.title('Histogram of ratio between Ih and theorie')
     plt.legend()
 
     plt.subplot(1,2,2)
-    plt.hist(data['ratio_pred'], bins=100, alpha=0.7, label='Ih/th')
-    plt.axvline(mpv_pred+std_2, color='blue', linestyle='dashed', linewidth=1, label=f'Std Dev: {std_2:.2f}\n mean={mpv_pred:.2f}')
-    plt.axvline(mpv_pred-std_2, color='blue', linestyle='dashed', linewidth=1)
-    plt.xlabel('ratio between Ih and dedx')
+    plt.hist(data['ratio_pred'], bins=100, alpha=0.7, label='pred/th')
+    plt.xlabel('ratio between prediction and theorie')
     plt.ylabel('N')
-    plt.ylim([0,850])
-    plt.title('Histogram of ratio between Ih and theorie')
+    plt.ylim(y_lim)
+    plt.title('Histogram of ratio between prediction and theorie')
     plt.legend()
-    plt.tight_layout()
+    #plt.tight_layout()
+    plt.show()
 
-def density(data,num_splits):
+def density(data,num_splits,ylim):
 
     split_size = len(data) // num_splits
     data=data.sort_values(by='track_p')
@@ -179,6 +171,8 @@ def density(data,num_splits):
     plt.errorbar(mean_p, mean_Ih, yerr=std_Ih,  label='standard déviation', fmt='o', capsize=3, color='r')
     plt.xlabel('p in GeV/c')
     plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.ylim(ylim)
+
     plt.title('Beth-Bloch recontruction with Ih formula')
     plt.legend()
 
@@ -189,6 +183,7 @@ def density(data,num_splits):
     plt.errorbar(mean_p, mean_pred, yerr=std_pred,  label='standard déviation', fmt='o', capsize=3, color='r')
     plt.xlabel('p in GeV/c')
     plt.ylabel(r'$-(\frac{dE}{dx}$)')
+    plt.ylim(ylim)
     plt.title('Beth-Bloch recontruction with Machine Learning')
     plt.legend()
 
@@ -366,6 +361,6 @@ if __name__ == "__main__":
     #plot_diff_Ih(path_test,path_Ih,True,True)
     branch_of_interest_1 = ['track_p','Ih','track_eta']
     data=cpf.import_data("Root_files/data_real_kaon.root",branch_of_interest_1)
-    data['Ih']=data['Ih']*1e-3
-    data["dedx"]=data['Ih']*1.25
+    # data['Ih']=data['Ih']*1e-3
+    # data["dedx"]=data['Ih']*1.25
     correlation(data,'Ih','track_eta')
