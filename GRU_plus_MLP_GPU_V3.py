@@ -157,7 +157,7 @@ def test_model(model, dataloader, criterion):
                 predictions.extend(outputs.tolist())
     print("Predictions on test data:")
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
-    return predictions, targets, test_loss
+    return predictions, test_loss
 
 
 def start_ML(model,file_model, train,test):
@@ -170,8 +170,8 @@ def start_ML(model,file_model, train,test):
     if test==True:
         model.load_state_dict(torch.load(file_model, weights_only=True)) 
         print("Evaluation du modèle...")
-        predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
-        return predictions, targets, test_loss
+        predictions, test_loss = test_model(model, test_dataloader, criterion)
+        return predictions, test_loss
 
 
 
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
 
-    predictions, targets, test_loss = start_ML(model,file_model, False, True)
+    predictions, test_loss = start_ML(model,file_model, False, True)
     print(f"Final Test Loss: {test_loss}")
 
     time_end = timeit.default_timer()
