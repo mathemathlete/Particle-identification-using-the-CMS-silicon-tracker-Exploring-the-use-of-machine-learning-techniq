@@ -102,7 +102,7 @@ class MLP_V3(nn.Module):
         final_value = dedx_pred + self.adjustment_scale * adjustment
         return final_value
     
-def train_model(model, dataloader, criterion, optimizer, scheduler, epochs,device):
+def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
     loss_array = []
@@ -113,7 +113,6 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs,devic
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
         model.train()
         for batch, (dedx_seq, dx_seq,geom_seq, lengths, targets, extras) in enumerate(dataloader):
-            dedx_seq,dx_seq,geom_seq, lengths, targets, extras = dedx_seq.to(device),dx_seq.to(device),geom_seq.to(device),lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(dedx_seq,dx_seq,geom_seq, lengths, extras)
             outputs = outputs.squeeze()
             targets = targets.squeeze()
@@ -209,6 +208,7 @@ def train_model_ray(config, checkpoint_dir=None):
 if __name__ == "__main__":
     # --- Data Import ---
     time_start = timeit.default_timer()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
     file_name = "Root_Files/data_GRU_V3.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
@@ -264,10 +264,16 @@ if __name__ == "__main__":
         num_samples=10,
         scheduler=ASHAScheduler(metric="loss", mode="min"),
         search_alg=OptunaSearch(metric="loss", mode="min"),
-        resources_per_trial={"cpu": 10, "gpu": 1},
+        resources_per_trial={"cpu": 8, "gpu": 0.8},
     )
     
-    best_config = analysis.get_best_config(metric="loss", mode="min")
+    # best_config = analysis.get_best_config(metric="loss", mode="min")
+
+    analysis = ExperimentAnalysis("C:/Users/a7xlm/ray_results/train_model_ray_2025-02-22_16-45-16")  # Load experiment data
+
+    # Get the best trial based on a metric (e.g., lowest loss)
+    best_trial = analysis.get_best_trial(metric="loss", mode="min")  
+    best_config = best_trial.config  # Best hyperparameters
 
     best_model = MLP_V3(
         dedx_hidden_size=best_config["dedx_hidden_size"],
@@ -285,10 +291,10 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
 
-    loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
+    loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, 200)
     torch.save(best_model.state_dict(), "GRU_plus_MLP_V3_tuned_200epoch.pth")
 
-    # model.load_state_dict(torch.load("GRU_plus_MLP_V3.pth", weights_only=True,map_location=torch.device('cpu')))
+    # best_model.load_state_dict(torch.load("GRU_plus_MLP_V3.pth", weights_only=True,map_location=torch.device('cpu')))
 
     predictions, targets, test_loss = test_model(best_model, test_dataloader, criterion)
     print(f"Final Test Loss: {test_loss}")
