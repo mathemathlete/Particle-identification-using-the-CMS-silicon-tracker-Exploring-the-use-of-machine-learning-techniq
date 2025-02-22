@@ -150,7 +150,7 @@ def test_model(model, dataloader, criterion):
             # Affichage des prédictions
     print("Prédictions sur le jeu de données de test :")
     print(f"Test Loss Moyen : {test_loss/len(dataloader) :.4f}")
-    return predictions, targets, test_loss
+    return predictions, test_loss
 
 def train_model_ray(config, checkpoint_dir=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -279,7 +279,7 @@ if __name__ == "__main__":
     losses_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
     torch.save(best_model.state_dict(), "best_model_MLP_GRU.pth")
 
-    predictions, targets, test_loss = test_model(best_model, test_dataloader, criterion)
+    predictions, test_loss = test_model(best_model, test_dataloader, criterion)
     print(f"Final Test Loss: {test_loss}")
 
     time_end = timeit.default_timer()

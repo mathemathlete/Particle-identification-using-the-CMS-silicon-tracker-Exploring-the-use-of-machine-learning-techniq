@@ -151,7 +151,7 @@ def test_model(model, dataloader, criterion):
             # Affichage des prédictions
     print("Prédictions sur le jeu de données de test :")
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
-    return predictions, targets, test_loss
+    return predictions, test_loss
 
 def start_ML(model,file_model, train,test):
     if train==True:
@@ -164,7 +164,7 @@ def start_ML(model,file_model, train,test):
         model.load_state_dict(torch.load(file_model, weights_only=True)) 
         print("Evaluation du modèle...")
         predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
-        return predictions, targets, test_loss
+        return predictions, test_loss
 
 
 
@@ -236,7 +236,7 @@ if __name__ == "__main__":
    
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions ,targets, test_loss = start_ML(model,file_model, False, True)
+    predictions , test_loss = start_ML(model,file_model, False, True)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start

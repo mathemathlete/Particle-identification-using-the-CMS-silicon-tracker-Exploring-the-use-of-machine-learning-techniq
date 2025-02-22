@@ -161,7 +161,7 @@ def test_model(model, dataloader, criterion):
                 predictions.extend(outputs.tolist())
     print("Predictions on test data:")
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
-    return predictions, targets, test_loss
+    return predictions, test_loss
 
 def train_model_ray(config, checkpoint_dir=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -287,7 +287,7 @@ if __name__ == "__main__":
 
     # model.load_state_dict(torch.load("GRU_plus_MLP_V3.pth", weights_only=True,map_location=torch.device('cpu')))
 
-    predictions, targets, test_loss = test_model(best_model, test_dataloader, criterion)
+    predictions, test_loss = test_model(best_model, test_dataloader, criterion)
     print(f"Final Test Loss: {test_loss}")
 
     time_end = timeit.default_timer()
