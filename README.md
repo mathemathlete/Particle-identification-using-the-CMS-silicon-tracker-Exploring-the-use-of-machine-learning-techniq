@@ -37,7 +37,7 @@ Here is the following structure of the code :
             - Extras : __N_hit__, __eta__ 
         - V3 : 
             - Input : [ __dedx__ ,__modulegeom__,__pathlength__]
-            - Extras : __N_hit__, __eta__, __I_h__ 
+            - Extras : __N_hit__, __eta__, __I_h__ <br>
     NB: dedx contains the values of __dedx_charge__ divided by the values of __dedx_pathlength__. ML_V0 contains an old ML with only two Linear Layers.
     When training is run, at the end of a run, the model is stored in a .pth file that has this template: *model_GRU_[LSTM/MLP]_V[1/2a/2b/3].pth*
     
