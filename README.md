@@ -44,18 +44,16 @@ Here is the following structure of the code :
         - V3 : 
             - Input : [dedx,modulegeom,pathlengh]
             - Extras : *N_hit*, *eta*,*I_h* 
+    NB : dedx contains the values of __dedx_charge__ divided by the values of __dedx_pathlengh__ 
+    : ML_V0 contains an old ML with only two Linear Layers
     When a training is ran, at the end of a run , the model is stored in a .pth file that has this template:
-    model
+    *model_GRU_[LSTM/MLP]_V[1/2a/2b/3].pth*
     + Tuning contains the Tuning of the different tuning algorithm that are used in order to calculate the optimal hyperparameters in order to have the best precision with the models. When a tuning is ran, a directory is created with this template : 
      *"C:/Users/UserName/ray_results/train_model_ray_yyyy-mm-_hh-mm-ss*
      All the different trials are stored in this directory using ray[tune] & after the end of tuning, the best configuration with the best hyperparameters is launched.
-     There is one tuning programm for each different algorithm except for both V2a ML (as their structure is very similar to V2a, we suppose that the hyperparameters for V2b could work for V2a). The model is then stored in a template
-
-
-
-    NB : dedx contains the values of __dedx_charge__ divided by the values of __dedx_pathlengh__ 
-    : ML_V0 contains an old ML with only two Linear Layers
-
+     There is one tuning programm for each different algorithm except for both V2a ML (as their structure is very similar to V2a, we suppose that the hyperparameters for V2b could work for V2a). The model is then stored in a .pth file with this template :
+     *best_model_GRU_[LSTM/MLP]_V[1/2a/2b/3].pth*
+    For the user, we suppose that we should run the tuning only once and then either launch the model by loading the model in the "classic file" in Architecture_RNN, or if the number of epoch wasn't satisfying to observe a convergence, we can choose to recover the hyperparameters with the *Recup_Tuning.py* to change them in the "classic file" to be able to choose the number of epoch.
     + Core contains the core files that are either used to process the initial data, or to plot the results
         - *Creation_plus_filtred.py* filtrate the initial data under the 3 boolean conditions in order to filtrate the relevant data. 
         - *file_ML.py* filtrate the data in output of *creation_plus_filtred.py* by selecting the area that we want (here we study at low *p* , especially at *p* <1.2 GeV) and we preparate the data by ajusting the Dataframe in input of the Machine Learning.
@@ -75,7 +73,7 @@ Create the environment by running :
 pip install -r requirements.txt
 ```
 
-## Usage of the code :
+## Use of the code :
 Every part of the '''main.py''' is cutted in part in order to run the relative function that are used in order to :
     - Preprocess the file in order to formate it to be used for the ML
     - Run either :
