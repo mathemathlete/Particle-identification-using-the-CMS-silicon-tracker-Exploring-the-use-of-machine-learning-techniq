@@ -264,7 +264,7 @@ if __name__ == "__main__":
         num_samples=20,
         scheduler=ASHAScheduler(metric="loss", mode="min"),
         search_alg=OptunaSearch(metric="loss", mode="min"),
-        resources_per_trial={"cpu": 10, "gpu": 0.8},
+        resources_per_trial={"cpu": 10, "gpu": 1},
     )
     
     best_config = analysis.get_best_config(metric="loss", mode="min")

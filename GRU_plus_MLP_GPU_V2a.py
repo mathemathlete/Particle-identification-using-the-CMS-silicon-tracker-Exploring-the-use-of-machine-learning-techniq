@@ -203,7 +203,7 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch)
     # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_V2a.pth")
     # losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
     # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_V2a.pth")
