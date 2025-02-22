@@ -12,35 +12,43 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
-    lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
-    padded_sequences = pad_sequence([d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) for d in dedx_list], batch_first=True)
-    extras = torch.stack([torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32) for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)])
+    lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.float32)
+    padded_sequences = pad_sequence(
+        [d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) 
+         for d in dedx_list],
+        batch_first=True
+    )
+    extras = torch.stack([
+        torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32)
+        for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)
+    ])
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
 
 class ParticleDataset(Dataset):
-    def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
-        self.ndedx_cluster = ndedx_cluster # int
-        self.dedx_values = dedx_values # dedx values is an array of a variable size
-        self.target_values = target_values # float
-        self.p_values = p_values # float
-        self.eta_values = eta_values # float
-        self.Ih_values = Ih_values # float 
+    def __init__(self, ndedx_cluster, dedx_values, target_values, p_values, eta_values, Ih_values):
+        self.ndedx_cluster = ndedx_cluster  # int
+        self.dedx_values = dedx_values      # dedx values is an array of variable size
+        self.target_values = target_values  # int        
+        self.p_values = p_values            # float
+        self.eta_values = eta_values        # float
+        self.Ih_values = Ih_values          # float 
 
     def __len__(self):
         return len(self.dedx_values)
 
     def __getitem__(self, idx):
-        x = torch.tensor(self.ndedx_cluster[idx],dtype=torch.float32)
+        x = torch.tensor(self.ndedx_cluster[idx], dtype=torch.float32)
         y = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
         z = torch.tensor(self.target_values[idx], dtype=torch.float32)
         t = torch.tensor(self.p_values[idx], dtype=torch.float32)
         u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
         o = torch.tensor(self.Ih_values[idx], dtype=torch.float32)
-        return x, y, z , t , u, o 
+        return x, y, z, t, u, o 
 
 class LSTMModel(nn.Module):
-    def __init__(self, dedx_hidden_size, dedx_num_layers, mlp_hidden_size, dropout_GRU, dropout_dedx,dropout_MLP, adjustement_scale):
+    def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers,
+                 adjustement_scale, dropout_GRU,dropout_dedx, dropout_LSTM,):
         super(LSTMModel, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
@@ -50,49 +58,47 @@ class LSTMModel(nn.Module):
             dropout=dropout_GRU if dedx_num_layers > 1 else 0.0
         )
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
-        self.dropout_dedx = nn.Dropout(dropout_dedx)
-
+        self.dropout_dedx= nn.Dropout(dropout_dedx)
         
-        # Instead of an LSTM branch, use a simple MLP
-        self.adjust_fc_hidden = nn.Linear(5, mlp_hidden_size)  # 5 = 1 (dedx_pred) + 4 (extras)
-        self.adjust_fc_output = nn.Linear(mlp_hidden_size, 1)
-        self.dropout_MLP = nn.Dropout(dropout_MLP)
+        self.adjust_lstm = nn.LSTM(
+            input_size=5,
+            hidden_size=lstm_hidden_size,
+            num_layers=lstm_num_layers,
+            batch_first=True,
+            dropout=dropout_LSTM if lstm_num_layers > 1 else 0.0
+        )
+        self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
         self.relu = nn.ReLU()
-        
-        # Adjustment scale remains as a multiplier
         self.adjustment_scale = adjustement_scale
 
     def forward(self, dedx_seq, lengths, extras):
-        # Process dedx_seq with GRU
         packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
         _, hidden = self.dedx_rnn(packed_seq)
         hidden_last = hidden[-1]
-        dedx_pred = self.relu(self.dropout_dedx(self.dedx_fc(hidden_last)))
+        dedx_pred = self.dedx_fc(hidden_last)
         
-        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 4]) → [batch_size, 5]
-        combined = torch.cat([dedx_pred, extras], dim=1)
-        x = self.adjust_fc_hidden(combined)
-        adjustment = self.dropout_MLP(self.adjust_fc_output(x))
+        lstm_input = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
+        _, (h_n, _) = self.adjust_lstm(lstm_input)
+        lstm_hidden = h_n[-1]
+        adjustment = self.adjust_fc(lstm_hidden)
         
-        final_value = dedx_pred + self.adjustment_scale * adjustment
-        return final_value
+        return dedx_pred + self.adjustment_scale * adjustment
 
-
-def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
-    loss_array = []
+def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
+    start_global = timeit.default_timer()
+    losses_array = []
     for epoch in range(epochs):
-        start = timeit.default_timer()
+        start_epoch = timeit.default_timer()
         epoch_loss = 0 
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
         model.train()
         for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):
-            outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
+            outputs = model(inputs, lengths, extras)
             outputs = outputs.squeeze()
             targets = targets.squeeze()
             loss = criterion(outputs, targets)
-            # Backpropagation
 
             loss.backward()
             optimizer.step()
@@ -100,38 +106,42 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
 
             epoch_loss += loss.item()
             if batch % 100 == 0:
-                loss, current = loss.item(), batch * batch_size + len(inputs)
+                loss_val, current = loss.item(), batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
-                print(f"loss: {loss:>7f} ({percentage:.2f}%)")
-
-        scheduler.step(epoch_loss)
-        print(f"Epoch Loss : {( epoch_loss / len(dataloader) )}")
+                print(f"loss: {loss_val:>7f} ({percentage:.2f}%)")
+        mean_epoch_loss = epoch_loss/len(dataloader)
+        scheduler.step(mean_epoch_loss)
+        print(f"Mean Epoch Loss : {mean_epoch_loss}")
+        losses_array.append(mean_epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
-        loss_array.append(epoch_loss/len(dataloader))
         end = timeit.default_timer()
-        elapsed_time = end - start
-        minutes, seconds = divmod(elapsed_time, 60)
-        print(f"Execution time for 1 epoch : {elapsed_time:.2f} seconds ({int(minutes)} min {seconds:.2f} sec)")
-    return loss_array
-        
+        elapsed_time_epoch = end - start_epoch
+        elapsed_time_global = end - start_global
+        hours_epoch, remainder_epoch = divmod(elapsed_time_epoch, 3600)
+        minutes_epoch, seconds_epoch = divmod(remainder_epoch, 60)
+        hours_global, remainder_global = divmod(elapsed_time_global, 3600)
+        minutes_global, seconds_global = divmod(remainder_global, 60)
+        print(f"Execution time for epoch {epoch+1}: {int(hours_epoch)} hr {int(minutes_epoch)} min {seconds_epoch:.2f} sec")
+        print(f"Total execution time: {int(hours_global)} hr {int(minutes_global)} min {seconds_global:.2f} sec")
+    return losses_array
+
 def test_model(model, dataloader, criterion):
     predictions = []
-    model.eval()  # Mettre le modèle en mode évaluation
+    model.eval()  # Set model to evaluation mode
     test_loss = 0.0
-    with torch.no_grad():  # Désactiver la grad pour l'évaluation
-        for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
-            outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
-            outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
-            targets = targets.squeeze()  # Ensure targets are 1-dimensional
+    with torch.no_grad():
+        for inputs, lengths, targets, extras in dataloader:
+            outputs = model(inputs, lengths, extras)
+            outputs = outputs.squeeze()
+            targets = targets.squeeze()
             loss = criterion(outputs, targets)
             test_loss += loss.item()       
             if outputs.dim() == 0:
                 predictions.append(outputs.item())
             else:
                 predictions.extend(outputs.tolist())
-            # Affichage des prédictions
-    print("Prédictions sur le jeu de données de test :")
-    print(f"Test Loss Moyen : {test_loss/len(dataloader) :.4f}")
+    print("Predictions on test data:")
+    print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, targets, test_loss
 
 if __name__ == "__main__":

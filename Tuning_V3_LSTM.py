@@ -203,7 +203,6 @@ def train_model_ray(config, checkpoint_dir=None):
         scheduler.step(avg_loss)
         session.report({"loss": avg_loss})
 
-
 if __name__ == "__main__":
     # --- Data Import ---
     time_start = timeit.default_timer()
@@ -223,8 +222,6 @@ if __name__ == "__main__":
     data_th_values = id.bethe_bloch(id.m_p, train_data["track_p"]).to_list()
     eta_values_train = train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
-    dataset = ParticleDataset(ndedx_values_train, dedx_values_train, dx_values_train,modulegeom_values_train, data_th_values, eta_values_train, Ih_values_train)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Prepare Test Data ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
@@ -235,8 +232,7 @@ if __name__ == "__main__":
     p_values_test = test_data["track_p"].to_list()
     eta_values_test = test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
-    test_dataset = ParticleDataset(ndedx_values_test, dedx_values_test,dx_values_test,modulegeom_values_test, data_th_values_test, eta_values_test, Ih_values_test)
-    test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
+
 
     # --- Hyperparameter Initialization ---
     search_space = {
@@ -261,7 +257,7 @@ if __name__ == "__main__":
         num_samples=10,
         scheduler=ASHAScheduler(metric="loss", mode="min"),
         search_alg=OptunaSearch(metric="loss", mode="min"),
-        resources_per_trial={"cpu": 10, "gpu": 0.8},
+        resources_per_trial={"cpu": 8, "gpu": 0.8},
     )
     
     best_config = analysis.get_best_config(metric="loss", mode="min")
@@ -281,8 +277,13 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
 
-    loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
-    torch.save(best_model.state_dict(), "GRU_plus_LSTM_V3_tuned_60epoch.pth")
+    dataset = ParticleDataset(ndedx_values_train, dedx_values_train, dx_values_train,modulegeom_values_train, data_th_values, eta_values_train, Ih_values_train)
+    dataloader = DataLoader(dataset, batch_size=best_config["batch_size"], shuffle=True, collate_fn=collate_fn)
+    test_dataset = ParticleDataset(ndedx_values_test, dedx_values_test,dx_values_test,modulegeom_values_test, data_th_values_test, eta_values_test, Ih_values_test)
+    test_dataloader = DataLoader(test_dataset, batch_size=best_config["batch_size"], collate_fn=collate_fn)
+
+    loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=150)
+    torch.save(best_model.state_dict(), "GRU_plus_LSTM_V3_tuned_150epoch.pth")
 
     # model.load_state_dict(torch.load("GRU_plus_MLP_V3.pth", weights_only=True,map_location=torch.device('cpu')))
 

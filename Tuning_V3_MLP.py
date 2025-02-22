@@ -258,14 +258,14 @@ if __name__ == "__main__":
 
     ray.init(ignore_reinit_error=True)
 
-    # analysis = tune.run(
-    #     train_model_ray,
-    #     config=search_space,
-    #     num_samples=10,
-    #     scheduler=ASHAScheduler(metric="loss", mode="min"),
-    #     search_alg=OptunaSearch(metric="loss", mode="min"),
-    #     resources_per_trial={"cpu": 8, "gpu": 0.8},
-    # )
+    analysis = tune.run(
+        train_model_ray,
+        config=search_space,
+        num_samples=10,
+        scheduler=ASHAScheduler(metric="loss", mode="min"),
+        search_alg=OptunaSearch(metric="loss", mode="min"),
+        resources_per_trial={"cpu": 8, "gpu": 0.8},
+    )
     
     # best_config = analysis.get_best_config(metric="loss", mode="min")
 

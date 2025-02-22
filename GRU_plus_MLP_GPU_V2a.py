@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 import timeit
 import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
-import Creation_plus_filtrage as cpf
+import Creation_plus_filtred as cpf
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, eta_list, Ih_list = zip(*batch)
@@ -226,6 +226,14 @@ if __name__ == "__main__":
     # Learning rate scheduler: reduce LR on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
+    # --- Entraînement du modèle ---
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch)
+    # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_V2a.pth")
+    # losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+    # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_V2a.pth")
+
+    # --- Sauvegarde et Chargement du modèle ---
+    model.load_state_dict(torch.load("model_LSTM_40_epoch_15000_V2a.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
