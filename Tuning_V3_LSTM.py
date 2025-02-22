@@ -184,7 +184,7 @@ def train_model_ray(config, checkpoint_dir=None):
     dataset = ParticleDataset(ndedx_values_train, dedx_values_train, dx_values_train,modulegeom_values_train, data_th_values, eta_values_train, Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
     
-    for epoch in range(30):
+    for epoch in range(10):
         model.train()
         total_loss = 0.0
 
@@ -258,7 +258,7 @@ if __name__ == "__main__":
     analysis = tune.run(
         train_model_ray,
         config=search_space,
-        num_samples=20,
+        num_samples=10,
         scheduler=ASHAScheduler(metric="loss", mode="min"),
         search_alg=OptunaSearch(metric="loss", mode="min"),
         resources_per_trial={"cpu": 10, "gpu": 0.8},
@@ -281,7 +281,7 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
 
-    loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=60)
+    loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
     torch.save(best_model.state_dict(), "GRU_plus_LSTM_V3_tuned_60epoch.pth")
 
     # model.load_state_dict(torch.load("GRU_plus_MLP_V3.pth", weights_only=True,map_location=torch.device('cpu')))

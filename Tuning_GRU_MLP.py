@@ -235,26 +235,25 @@ if __name__ == "__main__":
         "activation": tune.choice(["relu", "leaky_relu", "elu", "tanh", "sigmoid"])
     }
 
-    # ray.init(ignore_reinit_error=True)
+    ray.init(ignore_reinit_error=True)
 
-    # analysis = tune.run(
-    #     train_model_ray,
-    #     config=search_space,
-    #     num_samples=10,
-    #     scheduler=ASHAScheduler(metric="loss", mode="min"),
-    #     search_alg=OptunaSearch(metric="loss", mode="min"),
-    #     resources_per_trial={"cpu": 10, "gpu": 0.8},
-    # )
+    analysis = tune.run(
+        train_model_ray,
+        config=search_space,
+        num_samples=10,
+        scheduler=ASHAScheduler(metric="loss", mode="min"),     
+        search_alg=OptunaSearch(metric="loss", mode="min"),
+        resources_per_trial={"cpu": 10, "gpu": 0.8},
+    )
 
 
 
-    # best_config = analysis.get_best_config(metric="loss", mode="min")
-    analysis = ExperimentAnalysis("C:/Users/Kamil/ray_results/Tuning_GRU_MLP_1layer")  # Load experiment data
+    # # best_config = analysis.get_best_config(metric="loss", mode="min")
+    # analysis = ExperimentAnalysis("C:/Users/Kamil/ray_results/Tuning_GRU_MLP_1layer")  # Load experiment data
 
-    # Get the best trial based on a metric (e.g., lowest loss)
-    best_trial = analysis.get_best_trial(metric="loss", mode="min")  
-    best_config = best_trial.config  # Best hyperparameters
-    # On ne relance pas le modèle directement, mais à envisager si on veut automatiquement lancer le meilleur modèle
+    # # Get the best trial based on a metric (e.g., lowest loss)
+    # best_trial = analysis.get_best_trial(metric="loss", mode="min")  
+    # best_config = best_trial.config  # Best hyperparameters
 
     best_model = LSTMModel(
         dedx_hidden_size=best_config["dedx_hidden_size"],
