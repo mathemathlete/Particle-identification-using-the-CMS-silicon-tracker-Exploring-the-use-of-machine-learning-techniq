@@ -115,13 +115,13 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
     return loss_array
 
         
-def test_model(model, dataloader, criterion,device):
+def test_model(model, dataloader, criterion):
     predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
     test_loss = 0.0
     with torch.no_grad():  # Désactiver la grad pour l'évaluation
         for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
-            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            #inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
             targets = targets.squeeze()  # Ensure targets are 1-dimensional
@@ -139,9 +139,9 @@ def test_model(model, dataloader, criterion,device):
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
+    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
-    file_name = "Root_Files/ML_training_LSTM.root"
+    file_name = "Root_Files/data_real_filtred.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
         key = file.keys()[0]  # open the first Ttree
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
-    data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
+    data_th_values_test = id.bethe_bloch(id.m_kaon, test_data["track_p"]).to_list()
     eta_values_test =  test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
@@ -186,15 +186,15 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
-    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_V2a.pth")
+    # losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+    # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_V2a.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
-    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
+    model.load_state_dict(torch.load("model_LSTM_40_epoch_15000_V2a.pth", weights_only=True)) 
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion, device)
+    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
@@ -243,13 +243,25 @@ if __name__ == "__main__":
     # plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
     # plt.xscale('log')
     # plt.show()
-
     data_plot=pd.DataFrame()
     data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
     data_plot['Ih']=Ih_values_test
-    # ML.plot_ML_inside(data_plot, False,True , False)
+    data_plot['Ih']=data_plot['Ih']*1e-3
 
-    # ML.plot_diff_Ih(data_plot,True,True)
-    # ML.std(data_plot,15,True)
-    ML.loss_epoch(losses_epoch)
+    data_plot['track_eta']=test_data['track_eta']
+
+    # ML.plot_ML_inside(data_plot, False,True , False)
+    ylim_plot=[2,9]
+    #ML.plot_ML(data_plot,ylim_plot, True,False, False)
+    ML.plot_ratio(data_plot,id.m_p)  
+    #ML.density(data_plot,15,ylim_plot)
+    #ML.std(data_plot,15,True)
+    #ML.loss_epoch(losses_epoch)
+
+
+
+
+
+
+    #activate GPU l=142 and 197 124 118 124
