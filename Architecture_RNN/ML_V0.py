@@ -3,13 +3,15 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-import Identification as id
+from Core import Identification as id
 from torch.utils.data import Dataset, DataLoader
-from torch.nn.utils.rnn import pad_sequence
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
+import timeit
+from Core import ML_plot as ML
+from torch.nn.utils.rnn import pad_sequence
+from Core import Creation_plus_filtred as cpf
 import numpy as np
-import timeit 
+import matplotlib.pyplot as plt
 
 class ParticleDataset(Dataset):
     def __init__(self, dedx_values, target_values, max_len=100):

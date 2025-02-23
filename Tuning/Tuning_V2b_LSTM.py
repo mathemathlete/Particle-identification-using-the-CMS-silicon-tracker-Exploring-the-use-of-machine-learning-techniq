@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-import Identification as id
+from Core import Identification as id
+from Core import ML_plot as ml
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -16,7 +17,6 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
 from ray.tune import ExperimentAnalysis
-import ML_plot as ml
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, eta_list = zip(*batch)
@@ -43,9 +43,9 @@ class ParticleDataset(Dataset):
         u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
         return x, y, z ,u
 
-class MLP_V2b(nn.Module):
-    def __init__(self, dedx_hidden_size, dedx_num_layers, mlp_hidden_size1,mlp_hidden_size2,mlp_hidden_size3, dropout_GRU, dropout_dedx,dropout_MLP, adjustment_scale):
-        super(MLP_V2b, self).__init__()
+class LSTM_V2b(nn.Module):
+    def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size,lstm_num_layers, dropout_GRU, dropout_dedx,dropout_LSTM, adjustment_scale):
+        super(LSTM_V2b, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
             hidden_size=dedx_hidden_size,
@@ -57,16 +57,14 @@ class MLP_V2b(nn.Module):
         self.dropout_dedx = nn.Dropout(dropout_dedx)
 
         # Instead of an LSTM branch, use a simple MLP
-        self.adjust_mlp = nn.Sequential(
-            nn.Linear(3, mlp_hidden_size1),  # Input: 3 (dedx_pred + extras),
-            nn.ReLU(),
-            nn.Linear(mlp_hidden_size1, mlp_hidden_size2),  # Output: mlp_hidden_size2
-            nn.ReLU(),
-            nn.Linear(mlp_hidden_size2, mlp_hidden_size3),  # Output: mlp_hidden_size3
-            nn.ReLU(),
-            nn.Linear(mlp_hidden_size3, 1)  # Final output
+        self.adjust_lstm = nn.LSTM(
+            input_size=3,
+            hidden_size=lstm_hidden_size,
+            num_layers=lstm_num_layers,
+            batch_first=True,
+            dropout=dropout_LSTM if lstm_num_layers > 1 else 0.0
         )
-        self.dropout_MLP = nn.Dropout(dropout_MLP)
+        self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
         self.relu = nn.ReLU()
         
         # Adjustment scale remains as a multiplier
@@ -79,10 +77,10 @@ class MLP_V2b(nn.Module):
         hidden_last = hidden[-1]
         dedx_pred = self.relu(self.dropout_dedx(self.dedx_fc(hidden_last)))
         
-        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 2]) → [batch_size, 43
-        combined = torch.cat([dedx_pred, extras], dim=1)
-        x = self.adjust_mlp(combined)
-        adjustment = self.dropout_MLP(x)
+        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 2]) → [batch_size, 3]
+        combined = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
+        _, (h_n, _) = self.adjust_lstm(combined)  # Extract hidden state h_n
+        adjustment = self.adjust_fc(h_n[-1])  # Take the last layer's hidden state
         
         final_value = dedx_pred + self.adjustment_scale * adjustment
         return final_value
@@ -116,6 +114,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
                 current = batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
                 print(f"Loss: {loss_value:>7f} ({percentage:.2f}%)")
+
         mean_epoch_loss = epoch_loss / len(dataloader)
         scheduler.step(mean_epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
@@ -157,16 +156,15 @@ def test_model(model, dataloader, criterion,device):
 def train_model_ray(config, checkpoint_dir=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    model = MLP_V2b(
+    model = LSTM_V2b(
         dedx_hidden_size=config["dedx_hidden_size"],
         dedx_num_layers=config["dedx_num_layers"],
-        mlp_hidden_size1=config["mlp_hidden_size1"],
-        mlp_hidden_size2 =config["mlp_hidden_size2"],
-        mlp_hidden_size3 = config["mlp_hidden_size3"],
-        adjustment_scale=config["adjustment_scale"],
+        lstm_hidden_size=config["lstm_hidden_size"],
+        lstm_num_layers=config["lstm_num_layers"],
         dropout_GRU=config["dropout_GRU"],
         dropout_dedx=config["dropout_dedx"],
-        dropout_MLP=config["dropout_MLP"]
+        dropout_LSTM=config["dropout_LSTM"],
+        adjustment_scale=config["adjustment_scale"],
     ).to(device)
     
     criterion = nn.MSELoss()
@@ -231,18 +229,16 @@ if __name__ == "__main__":
     search_space = {
         "dedx_hidden_size": tune.choice([256, 512, 1024]),
         "dedx_num_layers": tune.choice([2, 3]),
-        "mlp_hidden_size1" :tune.choice([500, 750, 1000, 1250]),
-        "mlp_hidden_size2" :tune.choice([250,500, 750, 1000]),
-        "mlp_hidden_size3" : tune.choice([100, 200, 300]),
-        "dropout_GRU": tune.uniform(0.1, 0.5),
+        "lstm_hidden_size" :tune.choice([256, 512, 1024]),
+        "lstm_num_layers" :tune.choice([2, 3]),
         "dropout_dedx" : tune.uniform(0.1,0.5),
-        "dropout_MLP": tune.uniform(0.1, 0.5),
+        "dropout_GRU": tune.uniform(0.1, 0.5),
+        "dropout_LSTM": tune.uniform(0.1, 0.5),
         "adjustment_scale": tune.uniform(0.1, 1.0),
         "learning_rate": tune.loguniform(1e-4, 1e-2),   
         "weight_decay": tune.loguniform(1e-6, 1e-3),    
         "batch_size" : tune.choice([16,32,64]),
     }
-
 
     ray.init(ignore_reinit_error=True)
 
@@ -257,26 +253,25 @@ if __name__ == "__main__":
     
     best_config = analysis.get_best_config(metric="loss", mode="min")
 
-    best_model = MLP_V2b(
+    best_model = LSTM_V2b(
         dedx_hidden_size=best_config["dedx_hidden_size"],
         dedx_num_layers=best_config["dedx_num_layers"],
-        mlp_hidden_size1=best_config["mlp_hidden_size1"],
-        mlp_hidden_size2 =best_config["mlp_hidden_size2"],
-        mlp_hidden_size3 = best_config["mlp_hidden_size3"],
+        lstm_hidden_size=best_config["lstm_hidden_size"],
+        lstm_num_layers=best_config["lstm_num_layers"],
         adjustment_scale=best_config["adjustment_scale"],
         dropout_GRU=best_config["dropout_GRU"],
         dropout_dedx=best_config["dropout_dedx"],
-        dropout_MLP=best_config["dropout_MLP"]
-    ).to(device)
+        dropout_LSTM=best_config["dropout_LSTM"]
+    )
 
     optimizer = optim.Adam(best_model.parameters(), lr=best_config["learning_rate"], weight_decay = best_config["weight_decay"])
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
 
     loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=60)
-    torch.save(best_model.state_dict(), "GRU_plus_MLP_V2b_tuned_60epoch.pth")
+    torch.save(best_model.state_dict(), "GRU_plus_LSTM_V2b_tuned_60epoch.pth")
 
-    # model.load_state_dict(torch.load("GRU_plus_MLP_V2b_tuned_60epoch.pth", weights_only=True,map_location=torch.device('cpu')))
+    # model.load_state_dict(torch.load("GRU_plus_LSTM_V2b_tuned_60epoch.pth", weights_only=True,map_location=torch.device('cpu')))
 
     predictions, test_loss = test_model(best_model, test_dataloader, criterion)
     print(f"Final Test Loss: {test_loss}")
@@ -308,7 +303,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
 
-    np_th= np.array(targets)
+    np_th = np.array(data_th_values_test)
     np_pr = np.array(predictions)
 
     # --- Comparaison des prédictions et des valeurs théoriques ---

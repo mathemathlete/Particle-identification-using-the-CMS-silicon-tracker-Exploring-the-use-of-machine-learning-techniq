@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-import Identification as id
+from Core import Identification as id
+from Core import ML_plot as ml
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -16,7 +17,6 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
 from ray.tune import ExperimentAnalysis
-import ML_plot as ml
 
 def collate_fn(batch):
     """
@@ -353,21 +353,22 @@ if __name__ == "__main__":
     dropout_dedx = 0.1
     ray.init(ignore_reinit_error=True)
 
-    # analysis = tune.run(
-    #     train_model_ray,
-    #     config=search_space,
-    #     num_samples=20,
-    #     scheduler=ASHAScheduler(metric="loss", mode="min"),
-    #     search_alg=OptunaSearch(metric="loss", mode="min"),
-    #     resources_per_trial={"cpu": 10, "gpu": 0.8},
-    # )
+    analysis = tune.run(
+        train_model_ray,
+        config=search_space,
+        num_samples=20,
+        scheduler=ASHAScheduler(metric="loss", mode="min"),
+        search_alg=OptunaSearch(metric="loss", mode="min"),
+        resources_per_trial={"cpu": 10, "gpu": 0.8},
+    )
     
-    # best_config = analysis.get_best_config(metric="loss", mode="min")
+    best_config = analysis.get_best_config(metric="loss", mode="min")
     
-    analysis = ExperimentAnalysis("C:/Users/Kamil/ray_results/Tuning_GRU_LSTM_1per1")  # Load experiment data
-    # Get the best trial based on a metric (e.g., lowest loss)
-    best_trial = analysis.get_best_trial(metric="loss", mode="min")  
-    best_config = best_trial.config  # Best hyperparameters
+    # Shortcut if the model was already trained but we will use instead the start_ML with the .pth file
+    # analysis = ExperimentAnalysis("C:/Users/Kamil/ray_results/Tuning_GRU_LSTM_1per1")  # Load experiment data
+    # # Get the best trial based on a metric (e.g., lowest loss)
+    # best_trial = analysis.get_best_trial(metric="loss", mode="min")  
+    # best_config = best_trial.config  # Best hyperparameters
 
     best_model = LSTMModel(
         dedx_hidden_size=best_config["dedx_hidden_size"],
@@ -414,7 +415,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
 
-    np_th = np.array(targets)
+    np_th = np.array(data_th_values_test)
     np_pr = np.array(predictions)
 
     plt.figure(figsize=(8, 8))
