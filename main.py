@@ -16,6 +16,7 @@ branch_of_interest_LSTM_V3_out = ["ndedx","dedx_pathlength","dedx_cluster","dedx
 isstrip_ON = True
 insideTkmod_ON = True
 dedx_clusclean_ON = True
+
 # Choose the p range 
 p_min = 0
 p_max = 1.2

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import Creation_plus_filtred as cpf
-import Identification as id
+import Core.Creation_plus_filtred as cpf
+import Core.Identification as id
 import awkward as ak
 import pandas as pd
 from scipy.spatial.distance import mahalanobis, cdist
