@@ -52,7 +52,7 @@ Here is the following structure of the code :
 
     + requirement.txt contains all the different libraries needed to run the different programs.
 
-    + root_files directory contains the different core datasets that can be used. As they are too massive to be directly uploaded to GitHub, here is a Seafile link that provides access to the following files:
+    + root_files directory contains the different core datasets that can be used. As they are too massive to be directly uploaded to GitHub, here is a Seafile link that provides access to the following files https://seafile.unistra.fr/d/ff1385710b2f42548108/:
         The files in Seafile are:
         - *tree.root* contains simulated data of proton & kaon at medium/low __p__ (1GB)
         - *data.root* contains real data of proton & kaon at medium/low __p__ (2GB)
