@@ -4,6 +4,13 @@ from Core import Creation_plus_filtred as cpf
 from Core import Identification as id
 from Core import file_ML as fml
 from Architecture_RNN import GRU_plus_LSTM_V1 as rnn
+from Architecture_RNN import GRU_plus_LSTM_V2a as rnn2
+from Architecture_RNN import GRU_plus_LSTM_V2b as rnn3
+from Architecture_RNN import GRU_plus_LSTM_V3 as rnn4
+from Architecture_RNN import GRU_plus_MLP_V1 as rnn5
+from Architecture_RNN import GRU_plus_MLP_V2a as rnn6
+from Architecture_RNN import GRU_plus_MLP_V2b as rnn7
+from Architecture_RNN import GRU_plus_MLP_V3 as rnn8
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
@@ -30,8 +37,8 @@ data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targ
 p_values_train = train_data["track_p"].to_list()
 eta_values_train =  train_data["track_eta"].to_list()
 Ih_values_train = train_data["Ih"].to_list()
-dataset = rnn.ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
-dataloader = rnn.DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=rnn.collate_fn)
+dataset_rnn = rnn.ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
+dataloader_rnn = rnn.DataLoader(dataset_rnn, batch_size=32, shuffle=True, collate_fn=rnn.collate_fn)
 
 # --- prepare the test data ---
 ndedx_values_test = test_data["ndedx_cluster"].to_list()
@@ -40,8 +47,8 @@ data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
 p_values_test = test_data["track_p"].to_list()
 eta_values_test =  test_data["track_eta"].to_list()
 Ih_values_test = test_data["Ih"].to_list()
-test_dataset = rnn.ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
-test_dataloader = rnn.DataLoader(test_dataset, batch_size=32, collate_fn=rnn.collate_fn)
+test_dataset_rnn = rnn.ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
+test_dataloader_rnn = rnn.DataLoader(test_dataset_rnn, batch_size=32, collate_fn=rnn.collate_fn)
 
 # --- Initialisation du modèle, fonction de perte et optimiseur ---
 dedx_hidden_size = 256
@@ -55,6 +62,8 @@ dropout_LSTM = 0.29
 epoch = 20
 
 model = rnn.LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers, dropout_GRU, dropout_dedx, dropout_LSTM, adjustement_scale)
+
+
 criterion = nn.MSELoss()
 # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
 optimizer = optim.Adam(model.parameters(), lr=0.0002, weight_decay=1.97e-6)
@@ -67,11 +76,11 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience
 if ML_train==True:
     print("Training model...")
 
-    ML.loss_epoch(rnn.start_ML(model,file_model,dataloader,criterion,epoch, True, False,False))
+    ML.loss_epoch(rnn.start_ML(model,file_model,dataloader_rnn,criterion,epoch, True, False,False))
 
 if ML_test==True:
     print("Testing model...")
-    predictions, test_loss = rnn.start_ML(model,file_model,test_dataloader,criterion, False, True,False)
+    predictions, test_loss = rnn.start_ML(model,file_model,test_dataloader_rnn,criterion, False, True,False)
 
 
 time_end = rnn.timeit.default_timer()
