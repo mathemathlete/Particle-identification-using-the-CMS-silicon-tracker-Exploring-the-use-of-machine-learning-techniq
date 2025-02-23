@@ -116,19 +116,14 @@ def plot_ML(data,ylim, hist,hist_2, dev):
 
     if dev==True:
     # --- Comparison between theoretical and experimental values
-        plt.figure(figsize=(8, 8))
-        plt.subplot(1,2,1)
-        plt.hist2d(data['track_p'], np_pr-np_th, bins=500, cmap='viridis', label='Data')
-        plt.xlabel('momentum')
-        plt.ylabel('th-exp')
-        plt.title('Ecart entre théorique et prédite')
-        plt.legend()
 
         p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-        plt.subplot(1,2,2)
         plt.hist2d(data['track_p'],np_pr,bins=500, cmap='viridis', label='Data')
         plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
         plt.xscale('log')
+        plt.title('prediction plot with theorie')
+        plt.xlabel('p in GeV/c')
+        plt.ylabel(r'$-(\frac{dE}{dx}$)')
         plt.show()    
 
 
@@ -319,17 +314,11 @@ def std(data,num_splits,plot):
     
 
     if plot==True:
-        plt.subplot(1, 2, 1)
-        plt.scatter(std_data['track_p'],std_data['std_pred'])
-        plt.errorbar(std_data['track_p'], std_data['std_pred'], yerr=std_data['error'], label='standard déviation', fmt='o', capsize=3, color='b')
-        plt.ylabel("standard deviation of the predicted values")
-        plt.xlabel("P in GeV/c")
-        plt.legend()
-
-        plt.subplot(1, 2, 2)
-        plt.scatter(std_data['track_p'] ,std_data['std_Ih'])
-        plt.errorbar(std_data['track_p'], std_data['std_Ih'], yerr=std_data['error_Ih'], label='standard déviation', fmt='o', capsize=3, color='b')
-        plt.ylabel("standard deviation of Ih")
+        plt.scatter(std_data['track_p'],std_data['std_pred'],c='b')
+        plt.errorbar(std_data['track_p'], std_data['std_pred'], yerr=std_data['error'], label='prediction', fmt='o', capsize=3, color='b')
+        plt.scatter(std_data['track_p'] ,std_data['std_Ih'],c='r')
+        plt.errorbar(std_data['track_p'], std_data['std_Ih'], yerr=std_data['error_Ih'], label='Ih formula', fmt='o', capsize=3, color='r')
+        plt.ylabel("standard deviation of the predicted values and Ih")
         plt.xlabel("P in GeV/c")
         plt.legend()
         
@@ -393,22 +382,20 @@ def biais(data,biais,num_splits):
     std_data['error_pred']=error_pred
     std_data['error_Ih']=error_Ih
 
-    plt.subplot(1, 2, 1)
-    plt.scatter( std_data[biais] , std_data["sigma_mu_pred"])
-    plt.errorbar( std_data[biais] , std_data["sigma_mu_pred"], yerr= std_data['error_pred'], label='standard déviation', fmt='o', capsize=3, color='b')
+    plt.figure(figsize=(12, 6))
+    plt.scatter( std_data[biais] , std_data["sigma_mu_pred"],c='b')
+    plt.errorbar( std_data[biais] , std_data["sigma_mu_pred"], yerr= std_data['error_pred'], label='prediction', fmt='o', capsize=3, color='b')
     plt.ylabel(r'$\frac{\sigma}{\mu}$')
     plt.title("impact of the bias on the prediction")
-    plt.xlabel(biais)
-    plt.legend()
+   
 
-    plt.subplot(1, 2, 2)
-    plt.scatter( std_data[biais] ,std_data["sigma_mu_Ih"])
-    plt.errorbar( std_data[biais], std_data["sigma_mu_Ih"], yerr=std_data['error_Ih'], label='standard déviation', fmt='o', capsize=3, color='b')
+    plt.scatter( std_data[biais] ,std_data["sigma_mu_Ih"],c='r')
+    plt.errorbar( std_data[biais], std_data["sigma_mu_Ih"], yerr=std_data['error_Ih'], label='Ih formula', fmt='o', capsize=3, color='r')
     plt.ylabel(r"$\frac{\sigma}{\mu}$")
     plt.title("impact of the bias on the Ih formula")
     plt.xlabel(biais)
-    plt.legend()
     
+    plt.legend()
     plt.show()
 
 def correlation(data,branch_1,branch_2):

@@ -16,8 +16,8 @@ import torch.optim as optim
 import pandas as pd
 
 #########################################  training/testing ML  ###############################################
-ML_train=True 
-ML_test=False
+ML_train=False 
+ML_test=True
 
 ######################################### Choose the ML model  ###############################################
 # for use the model you want you need to modify the file model and the import name line 6
@@ -87,7 +87,6 @@ test_dataloader_rnn6 = rnn6.DataLoader(test_dataset_rnn6, batch_size=32, collate
 test_dataloader_rnn7 = rnn7.DataLoader(test_dataset_rnn7, batch_size=32, collate_fn=rnn7.collate_fn)
 test_dataloader_rnn8 = rnn8.DataLoader(test_dataset_rnn8, batch_size=32, collate_fn=rnn8.collate_fn)
 
-
 # --- LSTM Initialisation, 
 dedx_hidden_size = 256
 dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
@@ -155,19 +154,19 @@ print(f"Execution time: {elapsed_time:.2f} seconds ({int(hours)} h {int(minutes)
 ######################################### Part where we plot data from ML ###############################################
 
 data_plot=pd.DataFrame()
-data_plot['track_p']=test_data["track_p"].to_list()
+data_plot['track_p']=p_values_test
 data_plot['dedx']=predictions
 data_plot['Ih']=Ih_values_test
 data_plot['Ih']=data_plot['Ih']*1e-3
 data_plot['track_eta']=test_data['track_eta']
 
-ylim_plot=[2,9]
-ML.plot_ML(data_plot,ylim_plot, True,True, True)
+ylim_plot=[0,9]
+ML.plot_ML(data_plot,ylim_plot, False,False, False)
 #ML.plot_ratio(data_plot,id.m_p)  
 ML.density(data_plot,15,ylim_plot)
-ML.std(data_plot,15,True)
-ML.biais(data_plot,"track_eta",15)
-ML.biais(data_plot,"track_p",15)
+#ML.std(data_plot,15,True)
+#ML.biais(data_plot,"track_eta",15)
+#ML.biais(data_plot,"track_p",15)
 
 
 ##################################### Part where can eventually run the tuning ############################################
