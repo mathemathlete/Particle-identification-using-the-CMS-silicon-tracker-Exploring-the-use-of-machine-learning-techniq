@@ -3,8 +3,10 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-from Core import Identification as id
-from Core import ML_plot as ml
+# from Core import Identification as id
+import ML_plot as ML
+import Identification as id
+import ML_plot as ml   
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -258,14 +260,14 @@ if __name__ == "__main__":
 
     ray.init(ignore_reinit_error=True)
 
-    analysis = tune.run(
-        train_model_ray,
-        config=search_space,
-        num_samples=10,
-        scheduler=ASHAScheduler(metric="loss", mode="min"),
-        search_alg=OptunaSearch(metric="loss", mode="min"),
-        resources_per_trial={"cpu": 8, "gpu": 0.8},
-    )
+    # analysis = tune.run(
+    #     train_model_ray,
+    #     config=search_space,
+    #     num_samples=10,
+    #     scheduler=ASHAScheduler(metric="loss", mode="min"),
+    #     search_alg=OptunaSearch(metric="loss", mode="min"),
+    #     resources_per_trial={"cpu": 8, "gpu": 0.8},
+    # )
     
     # best_config = analysis.get_best_config(metric="loss", mode="min")
 
@@ -291,10 +293,10 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
 
-    loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, 200)
-    torch.save(best_model.state_dict(), "GRU_plus_MLP_V3_tuned_200epoch.pth")
+    # loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, 200)
+    # torch.save(best_model.state_dict(), "GRU_plus_MLP_V3_tuned_200epoch.pth")
 
-    # best_model.load_state_dict(torch.load("GRU_plus_MLP_V3.pth", weights_only=True,map_location=torch.device('cpu')))
+    best_model.load_state_dict(torch.load("D:/work/ITT_PID/Models/Best_model_GRU_plus_MLP_V3_tuned.pth", weights_only=True,map_location=torch.device('cpu')))
 
     predictions, test_loss = test_model(best_model, test_dataloader, criterion)
     print(f"Final Test Loss: {test_loss}")
@@ -303,45 +305,19 @@ if __name__ == "__main__":
     print(f"Execution Time: {time_end - time_start}")
 
     # --- Création des histogrammes ---
-    plt.figure(figsize=(12, 6))
+    data_plot=pd.DataFrame()
+    data_plot['track_p']=test_data["track_p"].to_list()
+    data_plot['dedx']=predictions
+    data_plot['Ih']=Ih_values_test
+    data_plot['Ih']=data_plot['Ih']*1e-3
+    data_plot['track_eta']=test_data['track_eta']
 
-    # Histogramme des prédictions
-    plt.subplot(1, 2, 1)
-    plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
-    plt.xlabel('Valeur')
-    plt.ylabel('N')
-    plt.xlim(4,10)
-    plt.ylim(0, 2000)
-    plt.title('Histogramme des Prédictions')
-    plt.legend()
+    ylim_plot=[4,9]
+    ML.plot_ML(data_plot,ylim_plot, True,True, True)
+    ML.plot_ratio(data_plot,id.m_p,[0,1000])  
+    ML.density(data_plot,15,ylim_plot)
+    #ML.std(data_plot,15,True)
+    #ML.loss_epoch(start_ML(model,file_model, False, True, False))
 
-    # Histogramme des valeurs théoriques
-    plt.subplot(1, 2, 2)
-    plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
-    plt.xlabel('Valeur')
-    plt.ylabel('N')
-    plt.title('Histogramme des Valeurs Théoriques')
-    plt.xlim(4,10)
-    plt.ylim(0, 2000)
-    plt.legend()
-    plt.tight_layout()
 
-    np_th = np.array(data_th_values_test)
-    np_pr = np.array(predictions)
-
-    # --- Comparaison des prédictions et des valeurs théoriques ---
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
-    plt.xlabel('Valeur')
-    plt.ylabel('th-exp')
-    plt.title('Ecart entre théorique et prédite')
-    plt.legend()
-
-    p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
-    plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
-    plt.xscale('log')
-    plt.show()
-
-    ml.loss_epoch(loss_array)
+    # ml.loss_epoch(loss_array)

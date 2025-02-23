@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
-import uproot
 from Core import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
@@ -10,6 +9,7 @@ import timeit
 from Core import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 from Core import Creation_plus_filtred as cpf
+
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
@@ -143,12 +143,11 @@ def test_model(model, dataloader, criterion):
                 predictions.extend(outputs.tolist())
     print("Predictions on test data:")
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
-    return predictions, targets, test_loss
+    return predictions, test_loss
 
-def start_ML(model,file_model, train,test,tuned_test):
+def start_ML(model,file_model,dataloader,criterion,epoch, train,test,tuned_test):
     """
     Entry point for starting the machine learning process for training or testing.
-
     Args:
         model (nn.Module): The model instance.
         file_model (str): Path to the saved model file.
@@ -165,14 +164,16 @@ def start_ML(model,file_model, train,test,tuned_test):
     """
     if train==True:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
-        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch , device)
+        optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch)
         torch.save(model.state_dict(), model)
         return losses_epoch
    
     if test==True:
         model.load_state_dict(torch.load(file_model, weights_only=True)) 
         print("Evaluation du modèle...")
-        predictions, test_loss = test_model(model, test_dataloader, criterion)
+        predictions, test_loss = test_model(model,dataloader, criterion)
         return predictions, test_loss
     
     if tuned_test==True:
@@ -185,9 +186,9 @@ if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
 
-    file_name = "Root_Files/ML_training_LSTM.root"
+    file_name = "Root_Files/data_real_filtred.root"
     branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
-    file_model = "model_LSTM_40_epoch_15000_V2a.pth"
+    file_model = "Models/best_model_GRU_LSTM_200epoch_V1.pth"
 
     data=cpf.import_data(file_name,branch_of_interest)
     train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
@@ -218,7 +219,7 @@ if __name__ == "__main__":
     lstm_hidden_size = 128
     lstm_num_layers = 2
     epoch = 200
-    epoch = 200
+
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
@@ -228,15 +229,9 @@ if __name__ == "__main__":
     # Learning rate scheduler: reduce LR on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
 
-    # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch)
-    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
-
-    # --- Sauvegarde et Chargement du modèle ---
-    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
-
-    # --- Évaluation du modèle ---
-    print("Evaluation du modèle...")
+   
+    # --- Testing model ---
+    print("Testing model...")
     predictions, test_loss = start_ML(model,file_model, False, True)
 
 
@@ -254,10 +249,12 @@ if __name__ == "__main__":
     data_plot['Ih']=data_plot['Ih']*1e-3
     data_plot['track_eta']=test_data['track_eta']
 
-    # ML.plot_ML_inside(data_plot, False,True , False)
     ylim_plot=[2,9]
-    #ML.plot_ML(data_plot,ylim_plot, True,False, False)
-    ML.plot_ratio(data_plot,id.m_p)  
-    #ML.density(data_plot,15,ylim_plot)
-    #ML.std(data_plot,15,True)
+    ML.plot_ML(data_plot,ylim_plot, True,True, True)
+    #ML.plot_ratio(data_plot,id.m_p)  
+    ML.density(data_plot,15,ylim_plot)
+    ML.std(data_plot,15,True)
+    ML.biais(data_plot,"track_eta",15)
+    ML.biais(data_plot,"track_p",15)
+
     #ML.loss_epoch(start_ML(model,file_model, True, False))

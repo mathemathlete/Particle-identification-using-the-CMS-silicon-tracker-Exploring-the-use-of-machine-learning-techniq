@@ -3,8 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-from Core import Identification as id
-from Core import ML_plot as ml
+import Identification as id
+import ML_plot as ML
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -351,24 +351,26 @@ if __name__ == "__main__":
     }
     # Le tuning avait été lancé sans évaluation du dropout_dedx, vu qu'on a pas eu le tps de le relancer on le pose à l'extérieur 
     dropout_dedx = 0.1
+
+
     ray.init(ignore_reinit_error=True)
 
-    analysis = tune.run(
-        train_model_ray,
-        config=search_space,
-        num_samples=20,
-        scheduler=ASHAScheduler(metric="loss", mode="min"),
-        search_alg=OptunaSearch(metric="loss", mode="min"),
-        resources_per_trial={"cpu": 10, "gpu": 0.8},
-    )
+    # analysis = tune.run(
+    #     train_model_ray,
+    #     config=search_space,
+    #     num_samples=20,
+    #     scheduler=ASHAScheduler(metric="loss", mode="min"),
+    #     search_alg=OptunaSearch(metric="loss", mode="min"),
+    #     resources_per_trial={"cpu": 10, "gpu": 0.8},
+    # )
     
-    best_config = analysis.get_best_config(metric="loss", mode="min")
+    # best_config = analysis.get_best_config(metric="loss", mode="min")
     
     # Shortcut if the model was already trained but we will use instead the start_ML with the .pth file
-    # analysis = ExperimentAnalysis("C:/Users/Kamil/ray_results/Tuning_GRU_LSTM_1per1")  # Load experiment data
-    # # Get the best trial based on a metric (e.g., lowest loss)
-    # best_trial = analysis.get_best_trial(metric="loss", mode="min")  
-    # best_config = best_trial.config  # Best hyperparameters
+    analysis = ExperimentAnalysis("C:/Users/a7xlm/ray_results/Tuning_GRU_LSTM_1per1")  # Load experiment data
+    # Get the best trial based on a metric (e.g., lowest loss)
+    best_trial = analysis.get_best_trial(metric="loss", mode="min")  
+    best_config = best_trial.config  # Best hyperparameters
 
     best_model = LSTMModel(
         dedx_hidden_size=best_config["dedx_hidden_size"],
@@ -385,8 +387,10 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
 
-    losses_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
-    torch.save(best_model.state_dict(), "best_model_GRU_LSTM_200epoch.pth")
+    # losses_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
+    # torch.save(best_model.state_dict(), "best_model_GRU_LSTM_200epoch.pth")
+    
+    best_model.load_state_dict(torch.load("D:/work/ITT_PID/Models/best_model_GRU_LSTM_200epoch_V1", weights_only=True,map_location=torch.device('cpu')))
 
     predictions, test_loss = test_model(best_model, test_dataloader, criterion)
     print(f"Final Test Loss: {test_loss}")
@@ -395,41 +399,16 @@ if __name__ == "__main__":
     print(f"Execution Time: {time_end - time_start}")
 
     # --- Plotting ---
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    plt.hist(predictions, bins=50, alpha=0.7, label='Predictions')
-    plt.xlabel('Value')
-    plt.ylabel('N')
-    plt.xlim(4, 10)
-    plt.ylim(0, 2000)
-    plt.title('Histogram of Predictions')
-    plt.legend()
+    data_plot=pd.DataFrame()
+    data_plot['track_p']=test_data["track_p"].to_list()
+    data_plot['dedx']=predictions
+    data_plot['Ih']=Ih_values_test
+    data_plot['Ih']=data_plot['Ih']*1e-3
+    data_plot['track_eta']=test_data['track_eta']
 
-    plt.subplot(1, 2, 2)
-    plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Theoretical Values')
-    plt.xlabel('Value')
-    plt.ylabel('N')
-    plt.title('Histogram of Theoretical Values')
-    plt.xlim(4, 10)
-    plt.ylim(0, 2000)
-    plt.legend()
-    plt.tight_layout()
-
-    np_th = np.array(data_th_values_test)
-    np_pr = np.array(predictions)
-
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test, np_pr - np_th, bins=500, cmap='viridis', label='Data')
-    plt.xlabel('Value')
-    plt.ylabel('th-exp')
-    plt.title('Difference between theoretical and predicted')
-    plt.legend()
-
-    p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test, np_pr, bins=500, cmap='viridis', label='Data')
-    plt.plot(p_axis, id.bethe_bloch(938e-3, np.array(p_axis)), color='red')
-    plt.xscale('log')
-    plt.show()
-
-    ml.loss_epoch(losses_array)
+    ylim_plot=[2,9]
+    ML.plot_ML(data_plot,ylim_plot, True,True, True)
+    ML.plot_ratio(data_plot,id.m_p,[0,1000])  
+    ML.density(data_plot,15,ylim_plot)
+    ML.std(data_plot,15,True)
+    #ML.loss_epoch(start_ML(model,file_model, False, True, False))

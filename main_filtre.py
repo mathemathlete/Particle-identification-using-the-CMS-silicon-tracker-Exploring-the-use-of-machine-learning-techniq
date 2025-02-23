@@ -3,6 +3,8 @@ import subprocess
 from Core import Creation_plus_filtred as cpf
 from Core import Identification as id
 from Core import file_ML as fml
+import sys
+import os
 
 ######################################### Part where we filter the data ###############################################
 
@@ -21,35 +23,10 @@ dedx_clusclean_ON = True
 p_min = 0
 p_max = 1.2
 Ih_max = 15000
-# Choose the input file and the output file
+# Choose the input file and the output name of the file
 file_name_in="Root_files/tree.root"
 file_out="Root_files/tree_filtred.root"
+
 data = cpf.filtrage_dedx(file_name_in,branch_of_interest_LSTM_V3_in,isstrip_ON,insideTkmod_ON,dedx_clusclean_ON)
 fml.preparation_data2(data,"data_V3.root",branch_of_interest_LSTM_V3_out,0,1.2,15000)
 
-######################################### Part where we train the ML model ###############################################
-# execute Machine learning train
-ML_train=False 
-# execute plot ML_output and choose the parameter
-plot_1=False # 1D plot the prediction of ML 
-
-hist= True # Histogram 1D of Ecart between theory and prediction
-hist_2=True # Histogram 2D of Ecart between theory and prediction and 
-path_ML="ML_out.root"
-# execute plot of the difference between Ih formula and ML prediction
-Test_ML=True
-
-path_in="ML_in.root"
-path_out="ML_out.root"
-Hist=True # Histogram 2D of de/dx with ML, with Ih and the difference between the two
-
-if ML_train==True:
-    subprocess.run(["python", "ML_functions_first.py"])
-
-######################################### Part where we test the ML model ###############################################
-if plot_1==True:
-    branch_of_interest = ["dedx","track_p"]
-    ML.plot_ML(path_ML, branch_of_interest, True ,hist,hist_2)
-
-if Test_ML==True:
-    ML.plot_diff_Ih(path_out,path_in, True,Hist)
