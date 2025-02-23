@@ -20,14 +20,45 @@ from ray.tune import ExperimentAnalysis
 
     
 def collate_fn(batch):
+    """
+    Custom collate function for PyTorch DataLoader.
+
+    Parameters:
+    - batch (list of tuples): Each tuple contains:
+      (ndedx, dedx, target, p, eta, Ih)
+
+    Returns:
+    - padded_sequences (Tensor): Padded dedx sequences (batch_size, max_len, 1)
+    - lengths (Tensor): Lengths of original dedx sequences before padding
+    - targets (Tensor): Target values (batch_size, 1)
+    - extras (Tensor): Extra features (ndedx, p, eta, Ih) with shape (batch_size, 4)
+    """
+
+    # Unpacking batch tuples into separate lists
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
+    # Compute sequence lengths before padding    
     lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
+    # Pad dedx sequences to have uniform length across batch
     padded_sequences = pad_sequence([d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) for d in dedx_list], batch_first=True)
+    # Stack extra features into a tensor
     extras = torch.stack([torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32) for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)])
+    # Convert target values to tensor
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
 
 class ParticleDataset(Dataset):
+    """
+        Custom Dataset for Particle Physics Data.
+
+        Parameters:
+        - ndedx_cluster (list or tensor): Number of dE/dx clusters (int)
+        - dedx_values (list of lists or tensors): Variable-length dE/dx sequences
+        - target_values (list or tensor): Target values (float)
+        - p_values (list or tensor): Momentum values (float)
+        - eta_values (list or tensor): Eta values (float)
+        - Ih_values (list or tensor): Ih values (float)
+    """
+
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values,eta_values,Ih_values):
         self.ndedx_cluster = ndedx_cluster # int
         self.dedx_values = dedx_values # dedx values is an array of a variable size
@@ -40,6 +71,15 @@ class ParticleDataset(Dataset):
         return len(self.dedx_values)
 
     def __getitem__(self, idx):
+        """
+        Returns:
+        - ndedx_cluster (Tensor, shape: [1])
+        - dedx_values (Tensor, shape: [variable_length])
+        - target_values (Tensor, shape: [1])
+        - p_values (Tensor, shape: [1])
+        - eta_values (Tensor, shape: [1])
+        - Ih_values (Tensor, shape: [1])
+        """
         x = torch.tensor(self.ndedx_cluster[idx],dtype=torch.float32)
         y = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
         z = torch.tensor(self.target_values[idx], dtype=torch.float32)
@@ -97,10 +137,29 @@ class MLP_V1(nn.Module):
         adjustment = self.dropout_MLP(x)
         
         final_value = dedx_pred + self.adjustment_scale * adjustment
+        
+        # Final adjusted prediction
+
         return final_value
 
 
 def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
+    """
+    Train a PyTorch model with an adaptive learning rate scheduler.
+
+    Parameters:
+    - model: PyTorch model
+    - dataloader: DataLoader for training data
+    - criterion: Loss function
+    - optimizer: Optimizer
+    - scheduler: Learning rate scheduler
+    - epochs: Number of training epochs
+    - device: "cuda" or "cpu" (automatically detected)
+
+    Returns:
+    - loss_array: List of average epoch losses
+    """
+
     loss_array = []
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
@@ -109,7 +168,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
         start_epoch = timeit.default_timer()
         epoch_loss = 0 
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
-        model.train()
+        model.train() # Set model to training mode
         for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()
@@ -126,6 +185,8 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
                 loss, current = loss.item(), batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
                 print(f"loss: {loss:>7f} ({percentage:.2f}%)")
+        
+        # Compute mean epoch loss
         mean_epoch_loss = epoch_loss / len(dataloader)
         scheduler.step(mean_epoch_loss)
         print(f"Mean Epoch Loss : {mean_epoch_loss}")
@@ -143,12 +204,26 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs):
     return loss_array
         
 def test_model(model, dataloader, criterion):
+    """
+    Test a PyTorch model and compute the average loss.
+
+    Parameters:
+    - model: Trained PyTorch model
+    - dataloader: DataLoader containing the test dataset
+    - criterion: Loss function
+    - device: "cuda" or "cpu" (auto-detected)
+
+    Returns:
+    - predictions: List of predicted values
+    - targets_list: List of true target values
+    - avg_test_loss: Average test loss
+    """
     predictions = []
-    model.eval()  # Mettre le modèle en mode évaluation
+    model.eval()  # Set model to evaluation mode
     test_loss = 0.0
-    with torch.no_grad():  # Désactiver la grad pour l'évaluation
-        for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
-            outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
+    with torch.no_grad():  # Disable gradient tracking
+        for inputs, lengths, targets, extras in dataloader:  # Iterate over the DataLoader
+            outputs = model(inputs, lengths, extras)  # Perform a forward pass
             outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
             targets = targets.squeeze()  # Ensure targets are 1-dimensional
             loss = criterion(outputs, targets)
@@ -157,8 +232,8 @@ def test_model(model, dataloader, criterion):
                 predictions.append(outputs.item())
             else:
                 predictions.extend(outputs.tolist())
-            # Affichage des prédictions
-    print("Prédictions sur le jeu de données de test :")
+            
+    print("prediction on the dataset test is :")
     print(f"Test Loss Moyen : {test_loss/len(dataloader) :.4f}")
     return predictions, test_loss
 
@@ -216,7 +291,7 @@ if __name__ == "__main__":
         data = tree.arrays(["ndedx_cluster", "dedx_cluster", "track_p", "track_eta", "Ih"], library="pd")
         train_data, test_data = train_test_split(data, test_size=0.25)
 
-    # --- Préparer les données de l'entrainement ---
+    # --- prepartion of the data for the training ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
@@ -224,7 +299,7 @@ if __name__ == "__main__":
     eta_values_train =  train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
 
-     # --- Préparer les données de tests ---
+     # --- prepartion of the data for the test ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()

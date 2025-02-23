@@ -218,6 +218,7 @@ if __name__ == "__main__":
     lstm_hidden_size = 128
     lstm_num_layers = 2
     epoch = 200
+    epoch = 200
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
@@ -236,7 +237,8 @@ if __name__ == "__main__":
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
+    predictions, test_loss = start_ML(model,file_model, False, True)
+
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
@@ -244,54 +246,18 @@ if __name__ == "__main__":
     minutes, seconds = divmod(remainder, 60)
     print(f"Execution time: {elapsed_time:.2f} seconds ({int(hours)} h {int(minutes)} min {seconds:.2f} sec)")
 
-    # # --- Création des histogrammes ---
-    # plt.figure(figsize=(12, 6))
-
-    # # Histogramme des prédictions
-    # plt.subplot(1, 2, 1)
-    # plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('N')
-    # plt.xlim(4,10)
-    # plt.ylim(0, 2000)
-    # plt.title('Histogramme des Prédictions')
-    # plt.legend()
-
-    # # Histogramme des valeurs théoriques
-    # plt.subplot(1, 2, 2)
-    # plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('N')
-    # plt.title('Histogramme des Valeurs Théoriques')
-    # plt.xlim(4,10)
-    # plt.ylim(0, 2000)
-    # plt.legend()
-    # plt.tight_layout()
-
-    # np_th= np.array(targets)
-    # np_pr = np.array(predictions)
-
-    # # --- Comparaison des prédictions et des valeurs théoriques ---
-    # plt.figure(figsize=(8, 8))
-    # plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('th-exp')
-    # plt.title('Ecart entre théorique et prédite')
-    # plt.legend()
-
-    # p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    # plt.figure(figsize=(8, 8))
-    # plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
-    # plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
-    # plt.xscale('log')
-    # plt.show()
 
     data_plot=pd.DataFrame()
-    data_plot['track_p']=p_values_test
+    data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
     data_plot['Ih']=Ih_values_test
-    #ML.plot_ML_inside(data_plot, False,True , False)
+    data_plot['Ih']=data_plot['Ih']*1e-3
+    data_plot['track_eta']=test_data['track_eta']
 
-    # ML.plot_diff_Ih(data_plot,True,True)
-    ML.std(data_plot,15,True)
-    # ML.loss_epoch(losses_epoch)
+    # ML.plot_ML_inside(data_plot, False,True , False)
+    ylim_plot=[2,9]
+    #ML.plot_ML(data_plot,ylim_plot, True,False, False)
+    ML.plot_ratio(data_plot,id.m_p)  
+    #ML.density(data_plot,15,ylim_plot)
+    #ML.std(data_plot,15,True)
+    #ML.loss_epoch(start_ML(model,file_model, True, False))

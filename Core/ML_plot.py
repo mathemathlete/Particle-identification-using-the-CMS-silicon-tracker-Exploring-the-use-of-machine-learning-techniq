@@ -12,6 +12,19 @@ from scipy import stats
 
 
 def plot_ML(data,ylim, hist,hist_2, dev):
+    """
+    Plots various comparisons between theoretical Bethe-Bloch predictions 
+    and experimental/Machine Learning (ML) reconstructed values.
+
+    Args:
+    - data (dict or DataFrame): Contains track momentum (`track_p`), 
+      ML predicted `dedx`, and Ih computed values.
+    - ylim (tuple): Y-axis limits for plots.
+    - hist (bool, optional): If True, plots histograms of predictions and theoretical momenta.
+    - hist_2 (bool, optional): If True, plots deviations between experimental/ML data and theory.
+    - dev (bool, optional): If True, plots 2D histograms of deviations.
+
+    """
     np_th= np.array(id.bethe_bloch(938e-3,data['track_p']))
     np_pr = np.array(data['dedx'])
     np_Ih=np.array(data['Ih'])
@@ -43,20 +56,20 @@ def plot_ML(data,ylim, hist,hist_2, dev):
        
         plt.figure(figsize=(12, 6))
 
-        # Histogramme des prédictions
+        # Histogram of Prediction
         plt.subplot(1, 2, 1)
-        plt.hist(np_pr, bins=50, alpha=0.7, label='Prédictions')
+        plt.hist(np_pr, bins=50, alpha=0.7, label='Prediction')
         plt.xlabel('momentum')
         plt.ylabel('N')
-        plt.title('Histogramme des Prédictions')
+        plt.title('Histogram of Prediction')
         plt.legend()
 
-        # Histogramme des momentums théoriques
+        # Histogram of Theoretical Momentums
         plt.subplot(1, 2, 2)
-        plt.hist(np_th, bins=50, alpha=0.7, label='momentums Théoriques')
-        plt.xlabel('momentum')
+        plt.hist(np_th, bins=50, alpha=0.7, label='Theoretical Momentums')
+        plt.xlabel('Momentums')
         plt.ylabel('N')
-        plt.title('Histogramme des momentums Théoriques')
+        plt.title('Histogram of Theoretical Momentums')
         plt.legend()
 
         plt.tight_layout()
@@ -102,7 +115,7 @@ def plot_ML(data,ylim, hist,hist_2, dev):
         plt.show()
 
     if dev==True:
-    # --- Comparaison des prédictions et des momentums théoriques ---
+    # --- Comparison between theoretical and experimental values
         plt.figure(figsize=(8, 8))
         plt.subplot(1,2,1)
         plt.hist2d(data['track_p'], np_pr-np_th, bins=500, cmap='viridis', label='Data')
@@ -119,9 +132,17 @@ def plot_ML(data,ylim, hist,hist_2, dev):
         plt.show()    
 
 
-
 def plot_ratio(data,m_part,y_lim):
+    """
+    Plots histograms of the ratio between computed energy loss (dE/dx) 
+    and theoretical Bethe-Bloch predictions for both Ih formula and ML predictions.
 
+    Args:
+    - data (DataFrame): Contains 'track_p', 'Ih', and 'dedx' values.
+    - m_part (float): Mass of the particle for Bethe-Bloch calculation.
+    - y_lim (tuple): Y-axis limits for histograms.
+
+    """
     data['ratio_Ih']=data['Ih']/id.bethe_bloch(m_part,np.array(data['track_p']))
     data['ratio_pred']=data['dedx']/id.bethe_bloch(m_part,np.array(data['track_p']))
    
@@ -142,11 +163,22 @@ def plot_ratio(data,m_part,y_lim):
     plt.ylim(y_lim)
     plt.title('Histogram of ratio between prediction and theorie')
     plt.legend()
-    #plt.tight_layout()
     plt.show()
 
 def density(data,num_splits,ylim):
+    """
+    Analyzes the energy loss per unit length (dE/dx) distribution 
+    by splitting data into bins of momentum and computing mean & standard deviation.
 
+    Args:
+    - data (DataFrame): Input dataset containing 'track_p', 'Ih', and 'dedx'.
+    - num_splits (int): Number of momentum bins.
+    - ylim (tuple): Y-axis limits for visualization.
+
+    Returns:
+    - Displays histograms with error bars for both Ih formula and ML predictions.
+    """
+ 
     split_size = len(data) // num_splits
     data=data.sort_values(by='track_p')
     sub_data = [data.iloc[i * split_size:(i + 1) * split_size] for i in range(num_splits)] # split in n sample
@@ -154,16 +186,10 @@ def density(data,num_splits,ylim):
     mean_pred = [sub_df['dedx'].mean() for sub_df in sub_data]
 
     std_Ih=[sub_df['Ih'].std() for sub_df in sub_data] # Calculate standard deviation for each sample
-    mean_Ih = [sub_df['Ih'].mean() for sub_df in sub_data]
+    mean_Ih = [sub_df['Ih'].mean() for sub_df in sub_data]  # Calculate mean value of Ih for each sample
     print(mean_Ih)
 
-    mean_p= [sub_df['track_p'].mean() for sub_df in sub_data]
-
-    # std_data = pd.DataFrame()
-    # std_data['std']=std_pred
-    # std_data['std_Ih']=std_Ih
-    # std_data['track_p']=mean_p
-  
+    mean_p= [sub_df['track_p'].mean() for sub_df in sub_data] # Calculate mean value of p  for each sample
 
     plt.figure(figsize=(12, 6))
     plt.subplot(1,2,1)
@@ -192,6 +218,18 @@ def density(data,num_splits,ylim):
 
 
 def dist_Mahalanobis (path,branch_of_interest):   
+    """
+    Detects outliers in a dataset using the Mahalanobis distance.
+
+    Parameters:
+    - path (str): Path to the dataset.
+    - branch_of_interest (list): List of features to extract.
+
+    Returns:
+    - Displays a 2D histogram with detected outliers
+
+    Never Used
+    """
     data_brut=cpf.import_data(path, branch_of_interest)
     data = np.column_stack((data_brut['track_p'], data_brut['dedx']))
     mean_vec = np.mean(data, axis=0)
@@ -208,7 +246,7 @@ def dist_Mahalanobis (path,branch_of_interest):
     plt.axhline(y=mean_vec[1], color='k', linestyle='--', alpha=0.5)
     plt.axvline(x=mean_vec[0], color='k', linestyle='--', alpha=0.5)
     plt.colorbar(label='Density of point')
-    plt.title("Détection des Outliers avec la Distance de Mahalanobis (Hist2D)")
+    plt.title("Outlier Detection using Mahalanobis Distance (2D Histogram)")
     plt.xlabel("X values")
     plt.ylabel("Y values")
     plt.legend()
@@ -217,7 +255,16 @@ def dist_Mahalanobis (path,branch_of_interest):
 
 
 def dispertion_indication(path,branch_of_interest):
+    """
+    Computes the dispersion of outliers in a dataset based on the Mahalanobis distance.
 
+    Parameters:
+    - path (str): Path to the dataset.
+    - branch_of_interest (list): List of features to extract.
+
+    Returns:
+    - mean_distance (float): Mean Euclidean distance of detected outliers from the data mean.
+    """
     data_brut=cpf.import_data(path, branch_of_interest)
     data = np.column_stack((data_brut['track_p'], data_brut['dedx']))
     mean_vec = np.mean(data, axis=0)
@@ -238,7 +285,18 @@ def dispertion_indication(path,branch_of_interest):
 
 
 def std(data,num_splits,plot):
-    # data=cpf.import_data(path, branch_of_interest)
+
+    """
+    Compute standard deviations and their errors for predicted and Ih values across momentum bins.
+
+    Parameters:
+    - data (DataFrame): Input data containing 'track_p', 'dedx', and 'Ih'.
+    - num_splits (int): Number of bins to split the data.
+    - plot (bool): If True, plot the standard deviation as a function of track momentum.
+
+    Returns:
+    - std_data (DataFrame): DataFrame containing standard deviations, means, and errors.
+    """
     split_size = len(data) // num_splits
     data=data.sort_values(by='track_p')
     sub_data = [data.iloc[i * split_size:(i + 1) * split_size] for i in range(num_splits)] # split in n sample
@@ -293,12 +351,21 @@ def loss_epoch(losses_epoch):
 
 
 def biais(data,biais,num_splits):
+    """
+    Analyze the impact of a bias variable on standard deviation and mean values.
 
+    Parameters:
+    - data (DataFrame): Input data containing 'track_p', 'dedx', and 'Ih'.
+    - biais (str): Column name representing the bias variable.
+    - num_splits (int): Number of bins to split the data.
+
+    Returns:
+    - std_data (DataFrame): DataFrame containing computed statistics.
+    """
     split_size = len(data) // num_splits
     data=data.sort_values(by=biais)
     
-    # sub_data = [data.iloc[i * split_size:(i + 1) * split_size] for i in range(num_splits - 1)] # split in n sample
-    # sub_data.append(data.iloc[(num_splits - 1) * split_size:])
+
     sub_data = np.array_split(data, num_splits)
 
     std_pred = [sub_df['dedx'].std() for sub_df in sub_data] # Calculate standard deviation for each sample
@@ -345,7 +412,17 @@ def biais(data,biais,num_splits):
     plt.show()
 
 def correlation(data,branch_1,branch_2):
+    """
+    Compute and visualize the correlation between two variables.
 
+    Parameters:
+    - data (DataFrame): Input dataset containing numerical columns.
+    - branch_1 (str): Name of the first column.
+    - branch_2 (str): Name of the second column.
+
+    Returns:
+    - coef_correlation (float): Pearson correlation coefficient.
+    """
     covariance = np.cov(data[branch_1], data[branch_2], bias=True)  # `bias=True` pour la version normale
     print(covariance)
     coef_correlation = np.corrcoef(data[branch_1], data[branch_2])

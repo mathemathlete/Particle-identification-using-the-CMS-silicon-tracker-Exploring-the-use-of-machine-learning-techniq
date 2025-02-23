@@ -14,21 +14,28 @@ def import_data(file_name, branch_of_interest):
 
 def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=False, dedx_clusclean=False):
     """
-    Crée un fichier root en extrayant les branches d'intérêt et en appliquant des filtres optionnels.
+    Creates a ROOT file by extracting selected branches and applying optional filters.
 
-    Conditions :
-    - Le premier élément de `branch_of_interest` doit être un `dedx`.
-    - Si `isstrip`, `insideTkmod` ou `clusterclean` sont activés, les colonnes correspondantes doivent être présentes dans `branch_of_interest`.
-    - L'ordre des colonnes doit respecter l'organisation attendue (Instlumi, npx/I, dedx_charge, dedx_pathlength, dedx_isstrip, 47
-    dedx_insideTkmod, dedx_clusclean    ).
+    Conditions:
+    - The first element of `branch_of_interest` must be `dedx`.
+    - If `isstrip`, `insideTkmod`, or `clusterclean` are enabled, their corresponding columns must be included in `branch_of_interest`.
+    - The column order must follow the expected structure:  
+    (Instlumi, npx/I, dedx_charge, dedx_pathlength, dedx_isstrip,  
+    dedx_insideTkmod, dedx_clusclean).
 
-    Paramètres :
-    - file_name : Nom du fichier ROOT.
-    - branch_of_interest : Liste des branches à extraire.
-    - isstrip, insideTkmod, clusterclean : booléens activant les filtres.
-    
-    Retourne :
-    - Un DataFrame Pandas contenant uniquement les colonnes `dedx_charge` et `dedx_pathlength`, avec les lignes vides supprimées.
+    Parameters:
+    - file_name : str  
+    Name of the ROOT file.  
+    - branch_of_interest : list  
+    List of branches to extract.  
+    - isstrip, insideTkmod, clusterclean : bool  
+    Boolean flags to enable specific filtering conditions.  
+
+    Returns:
+    - pd.DataFrame  
+    A Pandas DataFrame containing only `dedx_charge` and `dedx_pathlength` columns,  
+    with empty rows removed.
+
     """
     active_filters = []
     if isstrip:
@@ -41,7 +48,7 @@ def filtrage_dedx(file_name, branch_of_interest, isstrip=False, insideTkmod=Fals
     branch_of_interest.extend(active_filters)
 
     data=import_data(file_name, branch_of_interest)
-    # Déterminer les indices des colonnes utilisées pour le filtrage
+    # Determoine the active filters
 
     if active_filters:
         # Convert the DataFrame columns to Awkward Arrays for filtering

@@ -19,13 +19,30 @@ from ray.air import session
 from ray.tune import ExperimentAnalysis
 
 def collate_fn(batch):
+    """
+    Custom collate function for PyTorch DataLoader.
+
+    Parameters:
+    - batch (list of tuples): Each tuple contains:
+      (ndedx, dedx, target, p, eta, Ih)
+
+    Returns:
+    - padded_sequences (Tensor): Padded dedx sequences (batch_size, max_len, 1)
+    - lengths (Tensor): Lengths of original dedx sequences before padding
+    - targets (Tensor): Target values (batch_size, 1)
+    - extras (Tensor): Extra features (ndedx, p, eta, Ih) with shape (batch_size, 4)
+    """
+    # Unpacking batch tuples into separate lists
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
+    # Compute sequence lengths before padding
     lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.float32)
+    # Pad dedx sequences to have uniform length across batch
     padded_sequences = pad_sequence(
         [d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) 
          for d in dedx_list],
         batch_first=True
     )
+    # Extra features (ndedx, p, eta, Ih) for each sequence
     extras = torch.stack([
         torch.tensor([ndedx, p, eta, Ih], dtype=torch.float32)
         for ndedx, p, eta, Ih in zip(ndedx_list, p_list, eta_list, Ih_list)
@@ -34,6 +51,17 @@ def collate_fn(batch):
     return padded_sequences, lengths, targets, extras
 
 class ParticleDataset(Dataset):
+    """
+        Custom Dataset for Particle Physics Data.
+
+        Parameters:
+        - ndedx_cluster (list or tensor): Number of dE/dx clusters (int)
+        - dedx_values (list of lists or tensors): Variable-length dE/dx sequences
+        - target_values (list or tensor): Target values (float)
+        - p_values (list or tensor): Momentum values (float)
+        - eta_values (list or tensor): Eta values (float)
+        - Ih_values (list or tensor): Ih values (float)
+    """
     def __init__(self, ndedx_cluster, dedx_values, target_values, p_values, eta_values, Ih_values):
         self.ndedx_cluster = ndedx_cluster  # int
         self.dedx_values = dedx_values      # dedx values is an array of variable size
@@ -46,6 +74,15 @@ class ParticleDataset(Dataset):
         return len(self.dedx_values)
 
     def __getitem__(self, idx):
+        """
+        Returns:
+        - ndedx_cluster (Tensor, shape: [1])
+        - dedx_values (Tensor, shape: [variable_length])
+        - target_values (Tensor, shape: [1])
+        - p_values (Tensor, shape: [1])
+        - eta_values (Tensor, shape: [1])
+        - Ih_values (Tensor, shape: [1])
+        """
         x = torch.tensor(self.ndedx_cluster[idx], dtype=torch.float32)
         y = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
         z = torch.tensor(self.target_values[idx], dtype=torch.float32)
@@ -57,6 +94,19 @@ class ParticleDataset(Dataset):
 class LSTMModel(nn.Module):
     def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers,
                  adjustement_scale, dropout_GRU,dropout_dedx, dropout_LSTM,):
+        """
+        Initialize the LSTMModel.
+
+        Parameters:
+            dedx_hidden_size (int): The hidden size of the GRU for `dE/dx` sequence processing.
+            dedx_num_layers (int): The number of GRU layers to stack.
+            lstm_hidden_size (int): The hidden size of the LSTM used for adjustment.
+            lstm_num_layers (int): The number of LSTM layers.
+            adjustment_scale (float): A scaling factor for the final adjustment term.
+            dropout_GRU (float): Dropout probability for the GRU layers.
+            dropout_dedx (float): Dropout probability applied to the `dE/dx` output.
+            dropout_LSTM (float): Dropout probability for the LSTM layers used in the adjustment part.
+        """
         super(LSTMModel, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
@@ -80,46 +130,106 @@ class LSTMModel(nn.Module):
         self.adjustment_scale = adjustement_scale
 
     def forward(self, dedx_seq, lengths, extras):
+        """
+        Forward pass through the model.
+
+        Parameters:
+            dedx_seq (torch.Tensor): Input tensor containing the `dE/dx` sequence for each sample.
+            lengths (torch.Tensor): Tensor containing the lengths of the sequences in the batch.
+            extras (torch.Tensor): Tensor containing additional features (e.g., particle momentum, eta) for each sample.
+
+        Returns:
+            torch.Tensor: Final predicted values combining both `dE/dx` prediction and adjustment term.
+        """
+        # --- Process `dE/dx` sequences using GRU ---
+        # Pack the `dE/dx` sequence tensor to handle variable-length sequences efficiently
         packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
+        # Pass the packed sequence through the GRU to extract hidden states
         _, hidden = self.dedx_rnn(packed_seq)
-        hidden_last = hidden[-1]
+        # Extract the last hidden state from the final GRU layer
+        hidden_last = hidden[-1]        
+        # Predict `dE/dx` using a fully connected layer on the last hidden state
         dedx_pred = self.dedx_fc(hidden_last)
         
+        # --- Process Adjustment with LSTM using Additional Features ---
+        # Concatenate the `dE/dx` prediction with the additional features (extras)
         lstm_input = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
+        # Pass the concatenated input through the LSTM
         _, (h_n, _) = self.adjust_lstm(lstm_input)
+        # Extract the last hidden state from the LSTM
         lstm_hidden = h_n[-1]
+        # Apply the final fully connected layer to compute the adjustment term
         adjustment = self.adjust_fc(lstm_hidden)
-        
+         # --- Final Output ---
+        # The final predicted value is the sum of the `dE/dx` prediction and the adjustment term
         return dedx_pred + self.adjustment_scale * adjustment
 
 
 
 def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
+    """
+    Function to train a given model using the provided dataloader, criterion (loss function), optimizer, and scheduler.
+    
+    Parameters:
+    - model (nn.Module): The neural network model to be trained.
+    - dataloader (DataLoader): The data loader that provides batches of training data.
+    - criterion (nn.Module): The loss function used to compute the loss between predicted and target values.
+    - optimizer (torch.optim.Optimizer): The optimizer used for parameter updates.
+    - scheduler (torch.optim.lr_scheduler._LRScheduler): Learning rate scheduler for adjusting the learning rate during training.
+    - epochs (int, optional): Number of epochs to train the model. Default is 20.
+    
+    Returns:
+    - list: A list containing the average loss for each epoch.
+    """
+
+    # Get the size of the dataset and the batch size for tracking progress during training
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
+    # Record the start time for the entire training process (global time)   
     start_global = timeit.default_timer()
+    # List to store the average loss at the end of each epoch for monitoring
     losses_array = []
+    # Iterate through the specified number of epochs
     for epoch in range(epochs):
         start_epoch = timeit.default_timer()
+        # Initialize variable to accumulate the loss over the course of the epoch
         epoch_loss = 0 
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
+        # Set the model to training mode (enables features like dropout and batchnorm)
         model.train()
+        # Iterate over batches from the dataloader
+        # Iterate over batches from the dataloader
         for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):
+            # Forward pass: Pass inputs through the model to get predictions
             outputs = model(inputs, lengths, extras)
+
+            # Squeeze the outputs and targets to ensure they are 1-dimensional
             outputs = outputs.squeeze()
             targets = targets.squeeze()
+
+            # Calculate the loss between predicted outputs and true targets
             loss = criterion(outputs, targets)
 
+            # Backpropagate the loss to compute gradients
             loss.backward()
+
+            # Update the model parameters based on the computed gradients
             optimizer.step()
+
+            # Zero out gradients to prepare for the next batch
             optimizer.zero_grad()
 
+            # Accumulate the loss for the current epoch
             epoch_loss += loss.item()
+
+            # Periodically print progress for every 100th batch
             if batch % 100 == 0:
                 loss_val, current = loss.item(), batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
                 print(f"loss: {loss_val:>7f} ({percentage:.2f}%)")
-        mean_epoch_loss = epoch_loss/len(dataloader)
+         # Compute the mean loss for the epoch
+        mean_epoch_loss = epoch_loss / len(dataloader)
+        # Update the learning rate scheduler based on the mean epoch loss
         scheduler.step(mean_epoch_loss)
         print(f"Mean Epoch Loss : {mean_epoch_loss}")
         losses_array.append(mean_epoch_loss)

@@ -22,7 +22,7 @@ def preparation_data(file_in,file_out,branch_of_interest,p_min,p_max,Ih_max):
         tree = file[key]
         data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
 
-    data_filtered = data[data['track_p'] <= p_min ].reset_index(drop=True) #take only particle with momentum less than pmin GeV
+    data_filtered = data[data['track_p'] >= p_min ].reset_index(drop=True) #take only particle with momentum less than pmin GeV
     data_filtered = data_filtered[data_filtered['track_p'] >= p_max].reset_index(drop=True) #take only particle with momentum more than pmax GeV
     data_filtered['dedx_cluster']=data_filtered['dedx_charge']/data_filtered['dedx_pathlength'] #calculate dedx and create a new column
     data_filtered['Ih'] = np.sqrt(ak.sum(data_filtered['dedx_cluster']**2, axis=-1) / ak.count(data_filtered['dedx_cluster'], axis=-1)) #calculate quadratique mean of dedx along a track
@@ -34,7 +34,7 @@ def preparation_data(file_in,file_out,branch_of_interest,p_min,p_max,Ih_max):
         new_file["tree_name"] = { "dedx_cluster": data_filtered['dedx_cluster'], "track_p": data_filtered['track_p'],'Ih':data_filtered['Ih'], 'track_eta': data_filtered['track_eta']  }
 
 
-def preparation_data2(data,file_out,branch_of_interest_out,p_min,p_max,Ih_max):
+def preparation_data2(data,file_out,branch_of_interest_out,p_min,p_max,Ih_max,particle_type):
     """Preparation of the file for the ML process after the use of Creation_plsu_filtred.py
     Input : data : dataframe (optimaly in output of cpf.filtrage_dedx) (type : string)
             file_out : name of the file to save (type : string)
@@ -47,14 +47,19 @@ def preparation_data2(data,file_out,branch_of_interest_out,p_min,p_max,Ih_max):
     data['dedx_pathlength'] = data['dedx_pathlength'].apply(lambda x: np.asarray(x))
     data['dedx_cluster'] = data['dedx_charge'] / data['dedx_pathlength']
 
-    data_filtered = data[data['track_p'] <= p_min].reset_index(drop=True) #take only particle with momentum less than p_min GeV
+    data_filtered = data[data['track_p'] >= p_min].reset_index(drop=True) #take only particle with momentum less than p_min GeV
     data_filtered = data_filtered[data_filtered['track_p'] >= p_max].reset_index(drop=True) #take only particle with momentum more than pmax GeV
     data_filtered['dedx_cluster']=data_filtered['dedx_charge']/data_filtered['dedx_pathlength'] #calculate dedx and create a new column
+    print(ak.count(data_filtered['dedx_cluster']))
     data_filtered['Ih'] = np.sqrt(ak.sum(data_filtered['dedx_cluster']**2, axis=-1) / ak.count(data_filtered['dedx_cluster'], axis=-1)) #calculate quadratique mean of dedx along a track
-    data_filtered= data_filtered[data_filtered['Ih'] <= Ih_max].reset_index(drop=True) #Premier filtrage sur les données dedx
-    data_filtered = data_filtered[(data_filtered['Ih'] >= id.bethe_bloch(mass_limit, data_filtered['track_p']) * scaling)] #Filtrage du bruit 
-# Save the manipulated DataFrame to a new ROOT file
-    with uproot.recreate(file_out) as new_file:
+    data_filtered=data_filtered[data_filtered['Ih'] <= Ih_max].reset_index(drop=True) # First filtering on the dedx data
+    if particle_type == "proton":
+        data_filtered = data_filtered[(data_filtered['Ih'] <= id.bethe_bloch(mass_limit, data_filtered['track_p']) * scaling)] # filtering of other particles than proton
+    if particle_type == "kaon":
+        data_filtered = data_filtered[(data_filtered['Ih'] <= id.bethe_bloch(mass_limit, data_filtered['track_p']) * scaling)] #Flitering of other particles than kaon
+   
+    # Save the manipulated DataFrame to a new ROOT file
+    with uproot.recreate(file_out) as new_file: # create a new file to save the filtered data 
         new_file["tree_name"] = {branch: data_filtered[branch] for branch in branch_of_interest_out if branch in data_filtered}
 
 
@@ -78,5 +83,5 @@ if __name__ == "__main__" :
 
     # preparation_data("Root_files/tree.root","Root_files/ML_training_1.2.root",branch_of_interest_LSTM,0,1.2,15000)
 
-    data_V3 = cpf.filtrage_dedx("Root_files/tree.root",branch_of_interest_LSTM_V3_in,False,False,False)
-    preparation_data2(data_V3,"data_GRU_V3.root",branch_of_interest_LSTM_V3_out,0,1.2,15000)
+    data_V3 = cpf.filtrage_dedx("Root_files/data.root",branch_of_interest_LSTM_V3_in,True,True,True)
+    preparation_data2(data_V3,"data_real_filtred.root",branch_of_interest_LSTM_V3_out,0,1.2,15000,"proton")
