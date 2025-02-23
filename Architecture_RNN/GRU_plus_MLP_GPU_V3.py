@@ -31,7 +31,7 @@ def collate_fn(batch):
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences_dedx,padded_sequences_dx,padded_sequences_modulegeom, lengths, targets, extras
 
-class ParticleDataset(Dataset):
+class ParticleDataset_V3(Dataset):
     """
     Initialize the ParticleDataset.
 
@@ -233,10 +233,9 @@ def test_model(model, dataloader, criterion):
     return predictions, test_loss
 
 
-def start_ML(model,file_model, train,test,tuned_test):
+def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
     """
     Entry point for starting the machine learning process for training or testing.
-
     Args:
         model (nn.Module): The model instance.
         file_model (str): Path to the saved model file.
@@ -253,20 +252,16 @@ def start_ML(model,file_model, train,test,tuned_test):
     """
     if train==True:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
-        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
-        torch.save(model.state_dict(), model)
+        optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch,device)
+        torch.save(model.state_dict(), file_model)
         return losses_epoch
    
     if test==True:
         model.load_state_dict(torch.load(file_model, weights_only=True)) 
         print("Evaluation du modèle...")
-        predictions, test_loss = test_model(model, test_dataloader, criterion)
-        return predictions, test_loss
-    
-    if tuned_test==True:
-        model = torch.load(file_model)
-        print("Evaluation du modèle...")
-        predictions, test_loss = test_model(model, test_dataloader, criterion)
+        predictions, test_loss = test_model(model,dataloader, criterion)
         return predictions, test_loss
 
 
@@ -308,7 +303,7 @@ if __name__ == "__main__":
     data_th_values = id.bethe_bloch(id.m_p, train_data["track_p"]).to_list()
     eta_values_train = train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
-    dataset = ParticleDataset(ndedx_values_train, dedx_values_train, dx_values_train,modulegeom_values_train, data_th_values, eta_values_train, Ih_values_train)
+    dataset = ParticleDataset_V3(ndedx_values_train, dedx_values_train, dx_values_train,modulegeom_values_train, data_th_values, eta_values_train, Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Prepare Test Data ---
@@ -320,7 +315,7 @@ if __name__ == "__main__":
     p_values_test = test_data["track_p"].to_list()
     eta_values_test = test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
-    test_dataset = ParticleDataset(ndedx_values_test, dedx_values_test,dx_values_test,modulegeom_values_test, data_th_values_test, eta_values_test, Ih_values_test)
+    test_dataset = ParticleDataset_V3(ndedx_values_test, dedx_values_test,dx_values_test,modulegeom_values_test, data_th_values_test, eta_values_test, Ih_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
     dedx_hidden_size = 256

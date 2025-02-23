@@ -244,10 +244,9 @@ def test_model(model, dataloader, criterion,device):
     return predictions, test_loss
 
 
-def start_ML(model,file_model, train,test,tuned_test):
+def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
     """
     Entry point for starting the machine learning process for training or testing.
-
     Args:
         model (nn.Module): The model instance.
         file_model (str): Path to the saved model file.
@@ -264,20 +263,16 @@ def start_ML(model,file_model, train,test,tuned_test):
     """
     if train==True:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
-        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
-        torch.save(model.state_dict(), model)
+        optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch,device)
+        torch.save(model.state_dict(), file_model)
         return losses_epoch
    
     if test==True:
         model.load_state_dict(torch.load(file_model, weights_only=True)) 
         print("Evaluation du modèle...")
-        predictions, test_loss = test_model(model, test_dataloader, criterion)
-        return predictions, test_loss
-    
-    if tuned_test==True:
-        model = torch.load(file_model)
-        print("Evaluation du modèle...")
-        predictions, test_loss = test_model(model, test_dataloader, criterion)
+        predictions, test_loss = test_model(model,dataloader, criterion)
         return predictions, test_loss
 
 

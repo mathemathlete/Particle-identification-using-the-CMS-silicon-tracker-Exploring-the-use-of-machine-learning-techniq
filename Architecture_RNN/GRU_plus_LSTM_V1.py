@@ -270,8 +270,8 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
         If testing (either normal test or tuned test):
             tuple: (predictions, test_loss) from the test dataset.
     """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
     if train==True:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
         optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
         losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch,device)
@@ -322,9 +322,14 @@ if __name__ == "__main__":
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
     lstm_hidden_size = 128
     lstm_num_layers = 2
+    adjustment_scale = 0.64
+    dropout_GRU = 0.18
+    dropout_dedx = 0.1
+    dropout_LSTM = 0.29
     epoch = 200
 
-    model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
+    model = LSTMModel( dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers,
+                 adjustment_scale, dropout_GRU,dropout_dedx, dropout_LSTM)
     criterion = nn.MSELoss() # Si pas une grosse influence des outliers
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
