@@ -219,6 +219,7 @@ def test_model(model, dataloader, criterion):
     test_loss = 0.0
     with torch.no_grad():
         for dedx_seq, dx_seq,geom_seq, lengths, targets, extras in dataloader:
+            # dedx_seq,dx_seq,geom_seq, lengths, targets, extras = dedx_seq.to(device),dx_seq.to(device),geom_seq.to(device),lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(dedx_seq, dx_seq,geom_seq, lengths, extras)
             outputs = outputs.squeeze()
             targets = targets.squeeze()
@@ -342,7 +343,6 @@ if __name__ == "__main__":
     time_end = timeit.default_timer()
     print(f"Execution Time: {time_end - time_start}")
 
-    # --- Création des histogrammes ---
    
     data_plot=pd.DataFrame()
     data_plot['track_p']=test_data["track_p"].to_list()

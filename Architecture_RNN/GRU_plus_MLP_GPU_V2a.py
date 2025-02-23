@@ -239,20 +239,22 @@ def test_model(model, dataloader, criterion):
             - test_loss (float): Total loss over the test set.
     """
     predictions = []
-    model.eval()  # Set model to evaluation mode
+    model.eval()  
     test_loss = 0.0
-    with torch.no_grad():
-        for dedx_seq, dx_seq,geom_seq, lengths, targets, extras in dataloader:
-            outputs = model(dedx_seq, dx_seq,geom_seq, lengths, extras)
-            outputs = outputs.squeeze()
-            targets = targets.squeeze()
+    with torch.no_grad():  
+        for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
+            # inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
+            outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
+            targets = targets.squeeze()  # Ensure targets are 1-dimensional
             loss = criterion(outputs, targets)
             test_loss += loss.item()       
             if outputs.dim() == 0:
                 predictions.append(outputs.item())
             else:
                 predictions.extend(outputs.tolist())
-    print("Predictions on test data:")
+            # Affichage des prédictions
+    print("Prédictions sur le jeu de données de test :")
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, test_loss
 
@@ -300,7 +302,6 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
 
 
 if __name__ == "__main__":
-    # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
     #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
@@ -311,8 +312,6 @@ if __name__ == "__main__":
     data=cpf.import_data(file_name,branch_of_interest)
     train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
-
-    # --- Préparer les données de l'entrainement ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
@@ -321,7 +320,6 @@ if __name__ == "__main__":
     dataset = ParticleDataset_V2a(ndedx_values_train, dedx_values, data_th_values,eta_values_train,Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
-    # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(id.m_kaon, test_data["track_p"]).to_list()
@@ -330,7 +328,6 @@ if __name__ == "__main__":
     test_dataset = ParticleDataset_V2a(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
-# --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
     mlp_hidden_size1 = 500
@@ -350,16 +347,13 @@ if __name__ == "__main__":
     # Learning rate scheduler: reduce LR on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
-    # --- Entraînement du modèle ---
     losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch)
     # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_V2a.pth")
     # losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
     # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000_V2a.pth")
 
-    # --- Sauvegarde et Chargement du modèle ---
     model.load_state_dict(torch.load("model_LSTM_40_epoch_15000_V2a.pth", weights_only=True)) 
 
-    # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
     predictions, test_loss = start_ML(model,file_model, False, True, False)
 

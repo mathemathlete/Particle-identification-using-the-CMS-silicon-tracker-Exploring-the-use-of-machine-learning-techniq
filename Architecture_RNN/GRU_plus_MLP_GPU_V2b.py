@@ -218,20 +218,22 @@ def test_model(model, dataloader, criterion):
             - test_loss (float): Total loss over the test set.
     """
     predictions = []
-    model.eval()  # Set model to evaluation mode
+    model.eval()  
     test_loss = 0.0
-    with torch.no_grad():
-        for dedx_seq, dx_seq,geom_seq, lengths, targets, extras in dataloader:
-            outputs = model(dedx_seq, dx_seq,geom_seq, lengths, extras)
-            outputs = outputs.squeeze()
-            targets = targets.squeeze()
+    with torch.no_grad():  
+        for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
+            # inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
+            outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
+            targets = targets.squeeze()  # Ensure targets are 1-dimensional
             loss = criterion(outputs, targets)
             test_loss += loss.item()       
             if outputs.dim() == 0:
                 predictions.append(outputs.item())
             else:
                 predictions.extend(outputs.tolist())
-    print("Predictions on test data:")
+            # Affichage des prédictions
+    print("Prédictions sur le jeu de données de test :")
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, test_loss
 
@@ -279,7 +281,6 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
 
 
 if __name__ == "__main__":
-    # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
@@ -291,7 +292,6 @@ if __name__ == "__main__":
     train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
 
-    # --- Préparer les données de l'entrainement ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
@@ -299,7 +299,6 @@ if __name__ == "__main__":
     dataset = ParticleDataset_V2b(ndedx_values_train, dedx_values, data_th_values,eta_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
-    # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
@@ -307,7 +306,7 @@ if __name__ == "__main__":
     test_dataset = ParticleDataset_V2b(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
-# --- Initialisation du modèle, fonction de perte et optimiseur ---
+
     dedx_hidden_size = 256
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
     mlp_hidden_size1 = 500
@@ -320,14 +319,14 @@ if __name__ == "__main__":
     epoch = 200
 
     model = MLP_V2b(dedx_hidden_size, dedx_num_layers, mlp_hidden_size1,mlp_hidden_size2,mlp_hidden_size3, dropout_GRU, dropout_dedx,dropout_MLP,adjustement_scale)
-    criterion = nn.MSELoss() # Si pas une grosse influence des outliers
+    criterion = nn.MSELoss() 
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     
     # Learning rate scheduler: reduce LR on plateau
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
-    # --- Évaluation du modèle ---
+
     print("Evaluation du modèle...")
     predictions, test_loss = start_ML(model,file_model, False, True, False)
 
@@ -337,7 +336,7 @@ if __name__ == "__main__":
     minutes, seconds = divmod(remainder, 60)
     print(f"Execution time: {elapsed_time:.2f} seconds ({int(hours)} h {int(minutes)} min {seconds:.2f} sec)")
 
-    # # --- Création des histogrammes ---
+
     
     data_plot=pd.DataFrame()
     data_plot['track_p']=test_data["track_p"].to_list()

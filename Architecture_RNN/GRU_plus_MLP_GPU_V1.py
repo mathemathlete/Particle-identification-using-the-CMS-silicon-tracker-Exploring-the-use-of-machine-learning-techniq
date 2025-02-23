@@ -228,6 +228,41 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
         print(f"Total execution time: {int(hours_global)} hr {int(minutes_global)} min {seconds_global:.2f} sec")
     return loss_array
 
+def test_model(model, dataloader, criterion):
+    """
+    Evaluate the model on a test dataset.
+
+    Args:
+        model (nn.Module): The model to evaluate.
+        dataloader (DataLoader): DataLoader providing test data.
+        criterion (nn.Module): Loss function.
+        device (torch.device): Device (CPU/GPU) on which to run evaluation.
+
+    Returns:
+        tuple: A tuple containing:
+            - predictions (list): List of predictions for each test sample.
+            - test_loss (float): Total loss over the test set.
+    """
+    predictions = []
+    model.eval()  
+    test_loss = 0.0
+    with torch.no_grad():  
+        for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
+            # inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
+            outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
+            targets = targets.squeeze()  # Ensure targets are 1-dimensional
+            loss = criterion(outputs, targets)
+            test_loss += loss.item()       
+            if outputs.dim() == 0:
+                predictions.append(outputs.item())
+            else:
+                predictions.extend(outputs.tolist())
+            # Affichage des prédictions
+    print("Prédictions sur le jeu de données de test :")
+    print(f"Test Loss: {test_loss/len(dataloader):.4f}")
+    return predictions, test_loss
+
 
 def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
     """

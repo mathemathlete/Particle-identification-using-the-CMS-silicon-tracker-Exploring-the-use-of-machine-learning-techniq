@@ -249,6 +249,7 @@ def test_model(model, dataloader, criterion):
     test_loss = 0.0
     with torch.no_grad():
         for dedx_seq, dx_seq,geom_seq, lengths, targets, extras in dataloader:
+            # dedx_seq,dx_seq,geom_seq, lengths, targets, extras = dedx_seq.to(device),dx_seq.to(device),geom_seq.to(device),lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(dedx_seq, dx_seq,geom_seq, lengths, extras)
             outputs = outputs.squeeze()
             targets = targets.squeeze()
@@ -280,6 +281,7 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
         If testing (either normal test or tuned test):
             tuple: (predictions, test_loss) from the test dataset.
     """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
     if train==True:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
         optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
@@ -287,7 +289,6 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
         losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch,device)
         torch.save(model.state_dict(), file_model)
         return losses_epoch
-   
     if test==True:
         model.load_state_dict(torch.load(file_model, weights_only=True)) 
         print("Evaluation du modèle...")
