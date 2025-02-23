@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-from Core import Identification as id
-from Core import ML_plot as ml
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -17,6 +15,15 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
 from ray.tune import ExperimentAnalysis
+
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+from Core import Identification as id
+from Core import ML_plot as ml
 
     
 def collate_fn(batch):
@@ -372,42 +379,19 @@ if __name__ == "__main__":
     time_end = timeit.default_timer()
     print(f"Execution Time: {time_end - time_start}")
 
-    # --- Plotting ---
-    plt.figure(figsize=(12, 6))
-    plt.subplot(1, 2, 1)
-    plt.hist(predictions, bins=50, alpha=0.7, label='Predictions')
-    plt.xlabel('Value')
-    plt.ylabel('N')
-    plt.xlim(4, 10)
-    plt.ylim(0, 2000)
-    plt.title('Histogram of Predictions')
-    plt.legend()
+    # Plotting
+    data_plot=pd.DataFrame()
+    data_plot['track_p']=test_data["track_p"].to_list()
+    data_plot['dedx']=predictions
+    data_plot['Ih']=Ih_values_test
+    data_plot['Ih']=data_plot['Ih']*1e-3
+    data_plot['track_eta']=test_data['track_eta']
 
-    plt.subplot(1, 2, 2)
-    plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Theoretical Values')
-    plt.xlabel('Value')
-    plt.ylabel('N')
-    plt.title('Histogram of Theoretical Values')
-    plt.xlim(4, 10)
-    plt.ylim(0, 2000)
-    plt.legend()
-    plt.tight_layout()
-
-    np_th = np.array(data_th_values_test)
-    np_pr = np.array(predictions)
-
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test, np_pr - np_th, bins=500, cmap='viridis', label='Data')
-    plt.xlabel('Value')
-    plt.ylabel('th-exp')
-    plt.title('Difference between theoretical and predicted')
-    plt.legend()
-
-    p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test, np_pr, bins=500, cmap='viridis', label='Data')
-    plt.plot(p_axis, id.bethe_bloch(938e-3, np.array(p_axis)), color='red')
-    plt.xscale('log')
-    plt.show()
-
+    ylim_plot=[2,9]
+    ml.plot_ML(data_plot,ylim_plot, True,True, True)
+    #ML.plot_ratio(data_plot,id.m_p)  
+    ml.density(data_plot,15,ylim_plot)
+    ml.std(data_plot,15,True)
+    ml.biais(data_plot,"track_eta",15)
+    ml.biais(data_plot,"track_p",15)
     ml.loss_epoch(losses_array)

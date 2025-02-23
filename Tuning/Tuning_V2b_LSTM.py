@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-from Core import Identification as id
-from Core import ML_plot as ml
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -17,6 +15,14 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
 from ray.tune import ExperimentAnalysis
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+from Core import Identification as id
+from Core import ML_plot as ml
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, eta_list = zip(*batch)
@@ -222,6 +228,7 @@ if __name__ == "__main__":
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
     eta_values_test =  test_data["track_eta"].to_list()
     p_values_test = test_data["track_p"].to_list()
+    Ih_values_test = test_data["Ih"].to_list()
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
@@ -278,47 +285,21 @@ if __name__ == "__main__":
 
     time_end = timeit.default_timer()
     print(f"Execution Time: {time_end - time_start}")
+    
+    # Plotting
 
-    # --- Création des histogrammes ---
-    plt.figure(figsize=(12, 6))
+    data_plot=pd.DataFrame()
+    data_plot['track_p']=test_data["track_p"].to_list()
+    data_plot['dedx']=predictions
+    data_plot['Ih']=Ih_values_test
+    data_plot['Ih']=data_plot['Ih']*1e-3
+    data_plot['track_eta']=test_data['track_eta']
 
-    # Histogramme des prédictions
-    plt.subplot(1, 2, 1)
-    plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
-    plt.xlabel('Valeur')
-    plt.ylabel('N')
-    plt.xlim(4,10)
-    plt.ylim(0, 2000)
-    plt.title('Histogramme des Prédictions')
-    plt.legend()
-
-    # Histogramme des valeurs théoriques
-    plt.subplot(1, 2, 2)
-    plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
-    plt.xlabel('Valeur')
-    plt.ylabel('N')
-    plt.title('Histogramme des Valeurs Théoriques')
-    plt.xlim(4,10)
-    plt.ylim(0, 2000)
-    plt.legend()
-    plt.tight_layout()
-
-    np_th = np.array(data_th_values_test)
-    np_pr = np.array(predictions)
-
-    # --- Comparaison des prédictions et des valeurs théoriques ---
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
-    plt.xlabel('Valeur')
-    plt.ylabel('th-exp')
-    plt.title('Ecart entre théorique et prédite')
-    plt.legend()
-
-    p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    plt.figure(figsize=(8, 8))
-    plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
-    plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
-    plt.xscale('log')
-    plt.show()
-
+    ylim_plot=[2,9]
     ml.loss_epoch(loss_array)
+    ml.plot_ML(data_plot,ylim_plot, True,True, True)
+    #ML.plot_ratio(data_plot,id.m_p)  
+    ml.density(data_plot,15,ylim_plot)
+    ml.std(data_plot,15,True)
+    ml.biais(data_plot,"track_eta",15)
+    ml.biais(data_plot,"track_p",15)
