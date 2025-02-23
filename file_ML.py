@@ -22,7 +22,7 @@ def preparation_data(file_in,file_out,branch_of_interest,p_min,p_max,Ih_max):
         tree = file[key]
         data = tree.arrays(branch_of_interest, library="pd") # open data with array from numpy 
 
-    data_filtered = data[data['track_p'] <= p_min ].reset_index(drop=True) #take only particle with momentum less than pmin GeV
+    data_filtered = data[data['track_p'] >= p_min ].reset_index(drop=True) #take only particle with momentum less than pmin GeV
     data_filtered = data_filtered[data_filtered['track_p'] >= p_max].reset_index(drop=True) #take only particle with momentum more than pmax GeV
     data_filtered['dedx_cluster']=data_filtered['dedx_charge']/data_filtered['dedx_pathlength'] #calculate dedx and create a new column
     data_filtered['Ih'] = np.sqrt(ak.sum(data_filtered['dedx_cluster']**2, axis=-1) / ak.count(data_filtered['dedx_cluster'], axis=-1)) #calculate quadratique mean of dedx along a track
@@ -47,9 +47,10 @@ def preparation_data2(data,file_out,branch_of_interest_out,p_min,p_max,Ih_max,pa
     data['dedx_pathlength'] = data['dedx_pathlength'].apply(lambda x: np.asarray(x))
     data['dedx_cluster'] = data['dedx_charge'] / data['dedx_pathlength']
 
-    data_filtered = data[data['track_p'] <= p_min].reset_index(drop=True) #take only particle with momentum less than p_min GeV
+    data_filtered = data[data['track_p'] >= p_min].reset_index(drop=True) #take only particle with momentum less than p_min GeV
     data_filtered = data_filtered[data_filtered['track_p'] >= p_max].reset_index(drop=True) #take only particle with momentum more than pmax GeV
     data_filtered['dedx_cluster']=data_filtered['dedx_charge']/data_filtered['dedx_pathlength'] #calculate dedx and create a new column
+    print(ak.count(data_filtered['dedx_cluster']))
     data_filtered['Ih'] = np.sqrt(ak.sum(data_filtered['dedx_cluster']**2, axis=-1) / ak.count(data_filtered['dedx_cluster'], axis=-1)) #calculate quadratique mean of dedx along a track
     data_filtered=data_filtered[data_filtered['Ih'] <= Ih_max].reset_index(drop=True) # First filtering on the dedx data
     if particle_type == "proton":

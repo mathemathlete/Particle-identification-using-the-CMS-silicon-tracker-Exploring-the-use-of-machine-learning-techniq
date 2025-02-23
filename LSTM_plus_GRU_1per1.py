@@ -148,14 +148,14 @@ def test_model(model, dataloader, criterion):
 def start_ML(model,file_model, train,test):
     if train==True:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
-        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch, device)
         torch.save(model.state_dict(), model)
         return losses_epoch
    
     if test==True:
         model.load_state_dict(torch.load(file_model, weights_only=True)) 
         print("Evaluation du modèle...")
-        predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
+        predictions, test_loss = test_model(model, test_dataloader, criterion)
         return predictions, test_loss
 
 
@@ -172,9 +172,9 @@ if __name__ == "__main__":
     time_start = timeit.default_timer()
 
 
-    file_name = "Root_Files/ML_training_LSTM.root"
+    file_name = "Root_Files/data_real_filtred.root"
     branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
-    file_model = "model_LSTM_40_epoch_15000_V2a.pth"
+    file_model = "best_model_GRU_LSTM_200epoch_V1.pth"
 
     data=cpf.import_data(file_name,branch_of_interest)
     train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
@@ -205,6 +205,7 @@ if __name__ == "__main__":
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
     lstm_hidden_size = 128
     lstm_num_layers = 2
+    epoch = 200
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
