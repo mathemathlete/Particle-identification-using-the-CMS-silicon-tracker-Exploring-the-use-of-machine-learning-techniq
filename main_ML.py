@@ -145,6 +145,21 @@ if ML_test==True:
     # We lacked of time in order to make something more flexible
     predictions, test_loss = rnn.start_ML(model,file_model_save,test_dataloader_rnn,criterion,epoch, False, True)
 
+    data_plot=pd.DataFrame()
+    data_plot['track_p']=p_values_test
+    data_plot['dedx']=predictions
+    data_plot['Ih']=Ih_values_test
+    data_plot['Ih']=data_plot['Ih']*1e-3
+    data_plot['track_eta']=test_data['track_eta']
+
+    ylim_plot=[0,9]
+    ML.plot_ML(data_plot,ylim_plot, False,False, False)
+    #ML.plot_ratio(data_plot,id.m_p)  
+    ML.density(data_plot,15,ylim_plot)
+    ML.std(data_plot,15,True)
+    ML.biais(data_plot,"track_eta",15)
+    ML.biais(data_plot,"track_p",15)
+    
 time_end = rnn.timeit.default_timer()
 elapsed_time = time_end - time_start
 hours, remainder = divmod(elapsed_time, 3600)
@@ -153,24 +168,3 @@ print(f"Execution time: {elapsed_time:.2f} seconds ({int(hours)} h {int(minutes)
 
 ######################################### Part where we plot data from ML ###############################################
 
-data_plot=pd.DataFrame()
-data_plot['track_p']=p_values_test
-data_plot['dedx']=predictions
-data_plot['Ih']=Ih_values_test
-data_plot['Ih']=data_plot['Ih']*1e-3
-data_plot['track_eta']=test_data['track_eta']
-
-ylim_plot=[0,9]
-ML.plot_ML(data_plot,ylim_plot, False,False, False)
-#ML.plot_ratio(data_plot,id.m_p)  
-ML.density(data_plot,15,ylim_plot)
-#ML.std(data_plot,15,True)
-#ML.biais(data_plot,"track_eta",15)
-#ML.biais(data_plot,"track_p",15)
-
-
-##################################### Part where can eventually run the tuning ############################################
-# We run the tuning as a subprocess because of some casualties that were encountered during the adaptation of the code with the main
-# An upgrade would be to integrate the tuning in the main code
-file_tuning = "Tuning/Tuning_LSTM_GRU_V1.py" # modify this variable to change the tuning file among the one present in directory
-subprocess.run(["python", file_tuning])
