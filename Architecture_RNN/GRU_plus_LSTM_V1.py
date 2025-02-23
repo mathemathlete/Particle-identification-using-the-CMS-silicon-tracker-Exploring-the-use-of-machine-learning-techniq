@@ -219,7 +219,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
     return loss_array
 
         
-def test_model(model, dataloader, criterion,device):
+def test_model(model, dataloader, criterion):
     """
     Evaluate the model on a test dataset.
 
@@ -239,7 +239,7 @@ def test_model(model, dataloader, criterion,device):
     test_loss = 0.0
     with torch.no_grad():  # Désactiver la grad pour l'évaluation
         for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
-            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            #inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
             targets = targets.squeeze()  # Ensure targets are 1-dimensional
@@ -254,7 +254,7 @@ def test_model(model, dataloader, criterion,device):
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, test_loss
 
-def start_ML(model,file_model,dataloader,criterion,epoch, train,test,tuned_test):
+def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
     """
     Entry point for starting the machine learning process for training or testing.
     Args:
@@ -262,7 +262,6 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test,tuned_test)
         file_model (str): Path to the saved model file.
         train (bool): If True, the model will be trained.
         test (bool): If True, the model will be evaluated.
-        tuned_test (bool): If True, the model will be evaluated with tuned hyperparameters.
 
     Returns:
         If training:
@@ -276,7 +275,7 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test,tuned_test)
         optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
         losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch,device)
-        torch.save(model.state_dict(), model)
+        torch.save(model.state_dict(), file_model)
         return losses_epoch
    
     if test==True:
@@ -285,11 +284,7 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test,tuned_test)
         predictions, test_loss = test_model(model,dataloader, criterion)
         return predictions, test_loss
     
-    if tuned_test==True:
-        model = torch.load(file_model)
-        print("Evaluation du modèle...")
-        predictions, test_loss = test_model(model, test_dataloader, criterion)
-        return predictions, test_loss
+   
 
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---

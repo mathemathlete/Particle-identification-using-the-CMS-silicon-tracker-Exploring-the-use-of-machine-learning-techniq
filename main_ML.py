@@ -4,20 +4,13 @@ from Core import Creation_plus_filtred as cpf
 from Core import Identification as id
 from Core import file_ML as fml
 from Architecture_RNN import GRU_plus_LSTM_V1 as rnn
-from Architecture_RNN import GRU_plus_LSTM_V2a as rnn2
-from Architecture_RNN import GRU_plus_LSTM_V2b as rnn3
-from Architecture_RNN import GRU_plus_LSTM_V3 as rnn4
-from Architecture_RNN import GRU_plus_MLP_V1 as rnn5
-from Architecture_RNN import GRU_plus_MLP_V2a as rnn6
-from Architecture_RNN import GRU_plus_MLP_V2b as rnn7
-from Architecture_RNN import GRU_plus_MLP_V3 as rnn8
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 
 #########################################  training/testing ML  ###############################################
 ML_train=True 
-ML_test=True
+ML_test=False
 
 ######################################### Choose the ML model  ###############################################
 # for use the model you want you need to modify the file model and the import name line 6
@@ -25,7 +18,7 @@ time_start = rnn.timeit.default_timer()
 
 file_name = "Root_Files/ML_training_LSTM.root" # choose your data file
 branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
-file_model = "Models/best_model_GRU_LSTM_200epoch_V1.pth"
+file_model = "Models/best_model_GRU_LSTM_150epoch_V1.pth"
 
 data=cpf.import_data(file_name,branch_of_interest)
 train_data, test_data = rnn.train_test_split(data, test_size=0.25, random_state=42)
@@ -59,7 +52,7 @@ adjustement_scale = 0.64
 dropout_GRU = 0.18
 dropout_dedx = 0.1
 dropout_LSTM = 0.29
-epoch = 20
+epoch = 150
 
 model = rnn.LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers, dropout_GRU, dropout_dedx, dropout_LSTM, adjustement_scale)
 
@@ -69,18 +62,18 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.0002, weight_decay=1.97e-6)
 
 # Learning rate scheduler: reduce LR on plateau
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5)
 
 ######################################### Part where we test the ML model ###############################################
 # --- Testing model ---
 if ML_train==True:
     print("Training model...")
 
-    ML.loss_epoch(rnn.start_ML(model,file_model,dataloader_rnn,criterion,epoch, True, False,False))
+    ML.loss_epoch(rnn.start_ML(model,file_model,dataloader_rnn,criterion,epoch, True, False))
 
 if ML_test==True:
     print("Testing model...")
-    predictions, test_loss = rnn.start_ML(model,file_model,test_dataloader_rnn,criterion, False, True,False)
+    predictions, test_loss = rnn.start_ML(model,file_model,test_dataloader_rnn,criterion,epoch, False, True)
 
 
 time_end = rnn.timeit.default_timer()
