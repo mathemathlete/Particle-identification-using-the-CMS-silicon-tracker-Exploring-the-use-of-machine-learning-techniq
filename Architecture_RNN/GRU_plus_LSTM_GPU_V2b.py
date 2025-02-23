@@ -2,62 +2,46 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
-import Identification as id
+from Core import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import timeit
-import ML_plot as ML
+from Core import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
-import Creation_plus_filtred as cpf
+from Core import Creation_plus_filtred as cpf
 
 def collate_fn(batch):
     """
-    Collate function for DataLoader that pads variable-length dedx sequences and stacks extra features.
-
+    Custom collate function for DataLoader to handle variable-length sequences.
+    
     Args:
-        batch (list): A list of tuples, each containing (ndedx, dedx, target, eta, Ih).
-
+        batch (list): List of tuples containing ndedx values, dedx sequences, targets, and eta values.
+    
     Returns:
-        tuple: A tuple containing:
-            - padded_sequences (Tensor): Padded dedx sequences with shape [batch_size, max_seq_len, 1].
-            - lengths (Tensor): A tensor of sequence lengths for each dedx sequence.
-            - targets (Tensor): A tensor of target values.
-            - extras (Tensor): A tensor of extra features (ndedx, eta, Ih) with shape [batch_size, 3].
+        tuple: Padded sequences, sequence lengths, targets, and extra parameters.
     """
-    ndedx_list, dedx_list, target_list, eta_list, Ih_list = zip(*batch)
+    ndedx_list, dedx_list, target_list, eta_list = zip(*batch)
     lengths = torch.tensor([len(d) for d in dedx_list], dtype=torch.int64)
     padded_sequences = pad_sequence([d.clone().detach().unsqueeze(-1) if isinstance(d, torch.Tensor) else torch.tensor(d).unsqueeze(-1) for d in dedx_list], batch_first=True)
-    extras = torch.stack([torch.tensor([ndedx, eta, Ih], dtype=torch.float32) for ndedx, eta, Ih in zip(ndedx_list, eta_list, Ih_list)])
+    extras = torch.stack([torch.tensor([ndedx, eta], dtype=torch.float32) for ndedx, eta in zip(ndedx_list, eta_list)])
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
 
-class ParticleDataset_V2a(Dataset):
+class ParticleDataset_V2b(Dataset):
     """
-    Dataset class for particle data.
+    Initialize the ParticleDataset.
 
-    Attributes:
+    Args:
         ndedx_cluster (list): List of ndedx values.
-        dedx_values (list): List of dedx sequences (each sequence may have variable length).
-        target_values (list): List of target values.
-        eta_values (list): List of eta values.
-        Ih_values (list): List of Ih values.
+        dedx_values (list): List of dedx sequences (variable sizes).
+        target_values (list): List of target float values.
+        eta_values (list): List of eta float values.
     """
-    def __init__(self, ndedx_cluster, dedx_values, target_values,eta_values,Ih_values):
-        """
-        Initialize the ParticleDataset.
-
-        Args:
-            ndedx_cluster (list): List of ndedx values.
-            dedx_values (list): List of dedx sequences (variable sizes).
-            target_values (list): List of target float values.
-            eta_values (list): List of eta float values.
-            Ih_values (list): List of Ih float values.
-        """
+    def __init__(self, ndedx_cluster, dedx_values, target_values,eta_values):
         self.ndedx_cluster = ndedx_cluster # int
         self.dedx_values = dedx_values # dedx values is an array of a variable size
         self.target_values = target_values # float
         self.eta_values = eta_values # float
-        self.Ih_values = Ih_values # float 
 
     def __len__(self):
         """
@@ -80,18 +64,16 @@ class ParticleDataset_V2a(Dataset):
                 - dedx (Tensor): dedx sequence as a tensor.
                 - target (Tensor): target value as a tensor.
                 - eta (Tensor): eta value as a tensor.
-                - Ih (Tensor): Ih value as a tensor.
         """
         x = torch.tensor(self.ndedx_cluster[idx],dtype=torch.float32)
         y = torch.tensor(self.dedx_values[idx], dtype=torch.float32)
         z = torch.tensor(self.target_values[idx], dtype=torch.float32)
         u = torch.tensor(self.eta_values[idx], dtype=torch.float32)
-        o = torch.tensor(self.Ih_values[idx], dtype=torch.float32)
-        return x, y, z , u, o 
+        return x, y, z ,u
 
-class LSTM_V2a(nn.Module):
+class LSTM_V2b(nn.Module):
     """
-    LSTM_V2a model that processes dedx sequences with a GRU and applies an adjustment with an LSTM.
+    LSTM_V2b model that processes dedx sequences with a GRU and applies an adjustment with an LSTM.
 
     The model uses a GRU to process the dedx sequence and a fully connected layer to predict an initial value.
     It then concatenates this prediction with additional features and passes it through an LSTM to compute an adjustment.
@@ -107,9 +89,10 @@ class LSTM_V2a(nn.Module):
         dropout_LSTM (float): Dropout probability for LSTM (applied if lstm_num_layers > 1).
         adjustement_scale (float): Scaling factor for the adjustment.
     """
-    def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size,lstm_num_layers, dropout_GRU, dropout_dedx,dropout_LSTM, adjustement_scale):
-        super(LSTM_V2a, self).__init__()
-        # GRU to process dedx sequence
+
+    def __init__(self, dedx_hidden_size, dedx_num_layers, lstm_hidden_size,lstm_num_layers, dropout_GRU, dropout_dedx,dropout_LSTM, adjustment_scale):
+        super(LSTM_V2b, self).__init__()
+        # GRU branch for dedx sequence
         self.dedx_rnn = nn.GRU(
             input_size=1, 
             hidden_size=dedx_hidden_size,
@@ -117,55 +100,52 @@ class LSTM_V2a(nn.Module):
             batch_first=True,
             dropout=dropout_GRU if dedx_num_layers > 1 else 0.0
         )
-        # Fully connected layer to predict initial value
+        # Fully connected layer for dedx prediction
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
-        # Dropout layer for dedx prediction to avoid overfitting
+        # Dropout layer for dedx prediction
         self.dropout_dedx = nn.Dropout(dropout_dedx)
-        
-        # LSTM to adjust dedx prediction with extra features
+
+        # LSTM branch for adjustment
         self.adjust_lstm = nn.LSTM(
-            input_size=4,
+            input_size=3,
             hidden_size=lstm_hidden_size,
             num_layers=lstm_num_layers,
             batch_first=True,
             dropout=dropout_LSTM if lstm_num_layers > 1 else 0.0
         )
-        
-        # Fully connected layer to adjust dedx prediction
         self.adjust_fc = nn.Linear(lstm_hidden_size, 1)
         self.relu = nn.ReLU()
-
+        
         # Adjustment scale remains as a multiplier
-        self.adjustment_scale = adjustement_scale
+        self.adjustment_scale = adjustment_scale
 
     def forward(self, dedx_seq, lengths, extras):
         """
-        Forward pass of the LSTM_V2a model.
+        Forward pass of the LSTM_V2b model.
 
         Args:
             dedx_seq (Tensor): Padded dedx sequences of shape [batch_size, seq_len, 1].
             lengths (Tensor): Actual lengths of each dedx sequence.
-            extras (Tensor): Extra features of shape [batch_size, 3] (ndedx, eta, Ih).
+            extras (Tensor): Extra features of shape [batch_size, 2] (ndedx, eta).
 
         Returns:
             Tensor: Final prediction combining dedx prediction and the scaled adjustment.
         """
+        # Process dedx_seq with GRU
         packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
         _, hidden = self.dedx_rnn(packed_seq)
         hidden_last = hidden[-1]
         dedx_pred = self.relu(self.dropout_dedx(self.dedx_fc(hidden_last)))
         
-        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 3]) → [batch_size, 4]
+        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 2]) → [batch_size, 3]
         combined = torch.cat([dedx_pred, extras], dim=1).unsqueeze(1)
         _, (h_n, _) = self.adjust_lstm(combined)  # Extract hidden state h_n
         adjustment = self.adjust_fc(h_n[-1])  # Take the last layer's hidden state
         
         final_value = dedx_pred + self.adjustment_scale * adjustment
         return final_value
-
-
-# As we launch a subprocess in main , we need to define train model & test model for every code model
-# Could be optimized
+# As we launch a subprocess in main , we need to define train model for every code model
+# Could be optimized 
 def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, device):
     """
     Train the model for a specified number of epochs.
@@ -183,7 +163,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
         list: A list containing the mean loss for each epoch.
     """
     model.to(device)  # Ensure model is on GPU
-    loss_array = [] # Store loss values for each epoch to plot the convergence
+    loss_array = []
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
     start_global = timeit.default_timer()
@@ -210,7 +190,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
                 current = batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
                 print(f"Loss: {loss_value:>7f} ({percentage:.2f}%)")
-        
+
         mean_epoch_loss = epoch_loss / len(dataloader)
         scheduler.step(mean_epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
@@ -263,6 +243,7 @@ def test_model(model, dataloader, criterion,device):
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, test_loss
 
+
 def start_ML(model,file_model, train,test,tuned_test):
     """
     Entry point for starting the machine learning process for training or testing.
@@ -298,12 +279,15 @@ def start_ML(model,file_model, train,test,tuned_test):
         print("Evaluation du modèle...")
         predictions, test_loss = test_model(model, test_dataloader, criterion)
         return predictions, test_loss
-    
+
+
+
+
+
 
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
 
     file_name = "Root_Files/ML_training_LSTM.root"
     branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
@@ -312,22 +296,22 @@ if __name__ == "__main__":
     data=cpf.import_data(file_name,branch_of_interest)
     train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
+
     # --- Préparer les données de l'entrainement ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
     eta_values_train =  train_data["track_eta"].to_list()
-    Ih_values_train = train_data["Ih"].to_list()
-    dataset = ParticleDataset_V2a(ndedx_values_train, dedx_values, data_th_values,eta_values_train,Ih_values_train)
+    dataset = ParticleDataset_V2b(ndedx_values_train, dedx_values, data_th_values,eta_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
+    p_values_test = test_data["track_p"].to_list()
     eta_values_test =  test_data["track_eta"].to_list()
-    Ih_values_test = test_data["Ih"].to_list()
-    test_dataset = ParticleDataset_V2a(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
+    test_dataset = ParticleDataset_V2b(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
 # --- Initialisation du modèle, fonction de perte et optimiseur ---
@@ -335,7 +319,7 @@ if __name__ == "__main__":
     dedx_num_layers = 2
     lstm_hidden_size = 128
     lstm_num_layers = 2
-    adjustement_scale = 0.5
+    adjustment_scale = 0.5
     dropout_GRU = 0.1
     dropout_dedx = 0.1
     dropout_LSTM = 0.1
@@ -343,9 +327,9 @@ if __name__ == "__main__":
     weight_decay = 1e-5
     epoch = 200
 
-    model = LSTM_V2a(dedx_hidden_size, dedx_num_layers, lstm_hidden_size,lstm_num_layers, dropout_GRU, dropout_dedx,dropout_LSTM,adjustement_scale)
-    criterion = nn.MSELoss()
-    # Alternate optimizer: SGD with momentum (requires momentum parameter) (to test eventually)
+    model = LSTM_V2b(dedx_hidden_size, dedx_num_layers, lstm_hidden_size,lstm_num_layers, dropout_GRU, dropout_dedx,dropout_LSTM,adjustment_scale)
+    criterion = nn.MSELoss() # Si pas une grosse influence des outliers
+
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     
@@ -353,8 +337,8 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Évaluation du modèle ---
-    print("Evaluation du modèle...")
-    predictions , test_loss = start_ML(model,file_model, False,True)
+    predictions, test_loss = start_ML(model,file_model, False,True)
+
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
@@ -367,10 +351,11 @@ if __name__ == "__main__":
     data_plot=pd.DataFrame()
     data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
-    data_plot['Ih']=Ih_values_test
-    data_plot['eta']=eta_values_test
-    # ML.plot_ML_inside(data_plot, False,True , False)
+    data_plot['Ih']=test_data["Ih"].to_list()
+    data_plot['track_eta']=eta_values_test
+    
 
-    # ML.plot_diff_Ih(data_plot,True,True)
-    # ML.std(data_plot,15,True)
+    
+    ML.plot_ML(data_plot, False,True , False)
+    ML.biais(data_plot,"track_eta",15)
     ML.loss_epoch(start_ML(model,file_model, True, False))

@@ -2,15 +2,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
-import uproot
-import Identification as id
+from Core import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import timeit
-import ML_plot as ML
+from Core import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
-import Creation_plus_filtred as cpf
-
+from Core import Creation_plus_filtred as cpf
+import numpy as np
+import matplotlib.pyplot as plt
 def collate_fn(batch):
     """
     Collate function for DataLoader that processes variable-length dedx sequences and stacks extra features.

@@ -1,4 +1,4 @@
-import Creation_plus_filtred as cpf
+from Core import Creation_plus_filtred as cpf
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np

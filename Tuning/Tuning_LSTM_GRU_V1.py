@@ -3,12 +3,20 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-import Identification as id
+from Core import Identification as id
+from Core import ML_plot as ml
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+import numpy as np
 import timeit
-import ML_plot as ML
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
+import ray
+from ray import tune
+from ray.tune.schedulers import ASHAScheduler
+from ray.tune.search.optuna import OptunaSearch
+from ray.air import session
+from ray.tune import ExperimentAnalysis
 
 def collate_fn(batch):
     ndedx_list, dedx_list, target_list, p_list, eta_list, Ih_list = zip(*batch)
@@ -84,6 +92,8 @@ class LSTMModel(nn.Module):
         
         return dedx_pred + self.adjustment_scale * adjustment
 
+
+
 def train_model(model, dataloader, criterion, optimizer, scheduler, epochs=20):
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
@@ -142,118 +152,174 @@ def test_model(model, dataloader, criterion):
                 predictions.extend(outputs.tolist())
     print("Predictions on test data:")
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
-    return predictions, targets, test_loss
+    return predictions, test_loss
+
+def train_model_ray(config, checkpoint_dir=None):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    model = LSTMModel(
+        dedx_hidden_size=config["dedx_hidden_size"],
+        dedx_num_layers=config["dedx_num_layers"],
+        lstm_hidden_size=config["lstm_hidden_size"],
+        lstm_num_layers=config["lstm_num_layers"],
+        adjustement_scale=config["adjustment_scale"],
+        dropout_dedx=config["dropout_dedx"],
+        dropout_GRU=config["dropout_GRU"],
+        dropout_LSTM=config["dropout_LSTM"]
+    ).to(device)
+    
+    criterion = nn.HuberLoss()
+    optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"], weight_decay=config["weight_decay"])
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=config["decrease_factor_scheduler"])
+    
+    # Create a fresh DataLoader for this trial
+    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values, p_values_train, eta_values_train, Ih_values_train)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
+    
+    for epoch in range(20):
+        model.train()
+        total_loss = 0.0
+
+        for inputs, lengths, targets, extras in dataloader:
+            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            optimizer.zero_grad()
+            outputs = model(inputs, lengths, extras).squeeze()
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+
+        avg_loss = total_loss / len(dataloader)
+        scheduler.step(avg_loss)
+        # Use Ray AIR's session reporting API
+        session.report({"loss": avg_loss})
 
 if __name__ == "__main__":
-    # --- Importation des données ( à remplacer par la fonction d'importation du X)---
+    # --- Data Import ---
     time_start = timeit.default_timer()
-    file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
+    file_name = "Root_Files/ML_training_LSTM.root"
     data = pd.DataFrame()
     with uproot.open(file_name) as file:
-        key = file.keys()[0]  # open the first Ttree
+        key = file.keys()[0]
         tree = file[key]
-        data = tree.arrays(["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"], library="pd") # open data with array from numpy
+        data = tree.arrays(["ndedx_cluster", "dedx_cluster", "track_p", "track_eta", "Ih"], library="pd")
         train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
-    # --- Préparer les données de l'entrainement ---
+    # --- Prepare Training Data ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
     dedx_values = train_data["dedx_cluster"].to_list()
-    data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
+    data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()
     p_values_train = train_data["track_p"].to_list()
-    eta_values_train =  train_data["track_eta"].to_list()
+    eta_values_train = train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
-    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
+    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values, p_values_train, eta_values_train, Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
-    # --- Préparer les données de tests ---
+    # --- Prepare Test Data ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
     p_values_test = test_data["track_p"].to_list()
-    eta_values_test =  test_data["track_eta"].to_list()
+    eta_values_test = test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
-    test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
+    test_dataset = ParticleDataset(ndedx_values_test, dedx_values_test, data_th_values_test, p_values_test, eta_values_test, Ih_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
-    # --- Initialisation du modèle, fonction de perte et optimiseur ---
-    dedx_hidden_size = 256
-    dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
-    lstm_hidden_size = 128
-    lstm_num_layers = 2
+    # --- Hyperparameter Initialization ---
+    search_space = {
+        "dedx_hidden_size": tune.choice([64, 128, 256, 512, 1024]),
+        "dedx_num_layers": tune.choice([1, 2, 3]),
+        "lstm_hidden_size": tune.choice([32, 64, 128]),
+        "lstm_num_layers": tune.choice([1, 2, 3]),
+        "adjustment_scale": tune.uniform(0.1, 1.0),
+        "dropout_dedx" : tune.uniform(0.1,0.5),
+        "dropout_GRU": tune.uniform(0.1, 0.5),
+        "dropout_LSTM": tune.uniform(0.1, 0.5),
+        "learning_rate": tune.loguniform(1e-4, 1e-2),   
+        "weight_decay": tune.loguniform(1e-6, 1e-3),    
+        "decrease_factor_scheduler": tune.choice([0.5, 0.1])
+    }
+    # Le tuning avait été lancé sans évaluation du dropout_dedx, vu qu'on a pas eu le tps de le relancer on le pose à l'extérieur 
+    dropout_dedx = 0.1
+    ray.init(ignore_reinit_error=True)
 
-    model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
-    criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
-    # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
+    analysis = tune.run(
+        train_model_ray,
+        config=search_space,
+        num_samples=20,
+        scheduler=ASHAScheduler(metric="loss", mode="min"),
+        search_alg=OptunaSearch(metric="loss", mode="min"),
+        resources_per_trial={"cpu": 10, "gpu": 0.8},
+    )
     
-    # Learning rate scheduler: reduce LR on plateau
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+    best_config = analysis.get_best_config(metric="loss", mode="min")
+    
+    # Shortcut if the model was already trained but we will use instead the start_ML with the .pth file
+    # analysis = ExperimentAnalysis("C:/Users/Kamil/ray_results/Tuning_GRU_LSTM_1per1")  # Load experiment data
+    # # Get the best trial based on a metric (e.g., lowest loss)
+    # best_trial = analysis.get_best_trial(metric="loss", mode="min")  
+    # best_config = best_trial.config  # Best hyperparameters
 
-    # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=10)
-    # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
+    best_model = LSTMModel(
+        dedx_hidden_size=best_config["dedx_hidden_size"],
+        dedx_num_layers=best_config["dedx_num_layers"],
+        lstm_hidden_size=best_config["lstm_hidden_size"],
+        lstm_num_layers=best_config["lstm_num_layers"],
+        adjustement_scale=best_config["adjustment_scale"],
+        dropout_GRU=best_config["dropout_GRU"],
+        dropout_dedx=0.1,
+        dropout_LSTM=best_config["dropout_LSTM"]
+    )
+    
+    optimizer = optim.Adam(best_model.parameters(), lr=best_config["learning_rate"], weight_decay=best_config["weight_decay"])
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
+    criterion = nn.MSELoss()
 
-    # --- Sauvegarde et Chargement du modèle ---
-    # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 
+    losses_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
+    torch.save(best_model.state_dict(), "best_model_GRU_LSTM_200epoch.pth")
 
-    # --- Évaluation du modèle ---
-    print("Evaluation du modèle...")
-    predictions ,targets, test_loss = test_model(model, test_dataloader, criterion)
+    predictions, test_loss = test_model(best_model, test_dataloader, criterion)
+    print(f"Final Test Loss: {test_loss}")
 
     time_end = timeit.default_timer()
-    elapsed_time = time_end - time_start
-    hours, remainder = divmod(elapsed_time, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    print(f"Execution time: {elapsed_time:.2f} seconds ({int(hours)} h {int(minutes)} min {seconds:.2f} sec)")
+    print(f"Execution Time: {time_end - time_start}")
 
-    # # --- Création des histogrammes ---
-    # plt.figure(figsize=(12, 6))
+    # --- Plotting ---
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.hist(predictions, bins=50, alpha=0.7, label='Predictions')
+    plt.xlabel('Value')
+    plt.ylabel('N')
+    plt.xlim(4, 10)
+    plt.ylim(0, 2000)
+    plt.title('Histogram of Predictions')
+    plt.legend()
 
-    # # Histogramme des prédictions
-    # plt.subplot(1, 2, 1)
-    # plt.hist(predictions, bins=50, alpha=0.7, label='Prédictions')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('N')
-    # plt.xlim(4,10)
-    # plt.ylim(0, 2000)
-    # plt.title('Histogramme des Prédictions')
-    # plt.legend()
+    plt.subplot(1, 2, 2)
+    plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Theoretical Values')
+    plt.xlabel('Value')
+    plt.ylabel('N')
+    plt.title('Histogram of Theoretical Values')
+    plt.xlim(4, 10)
+    plt.ylim(0, 2000)
+    plt.legend()
+    plt.tight_layout()
 
-    # # Histogramme des valeurs théoriques
-    # plt.subplot(1, 2, 2)
-    # plt.hist(data_th_values_test, bins=50, alpha=0.7, label='Valeurs Théoriques')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('N')
-    # plt.title('Histogramme des Valeurs Théoriques')
-    # plt.xlim(4,10)
-    # plt.ylim(0, 2000)
-    # plt.legend()
-    # plt.tight_layout()
+    np_th = np.array(data_th_values_test)
+    np_pr = np.array(predictions)
 
-    # np_th= np.array(targets)
-    # np_pr = np.array(predictions)
+    plt.figure(figsize=(8, 8))
+    plt.hist2d(p_values_test, np_pr - np_th, bins=500, cmap='viridis', label='Data')
+    plt.xlabel('Value')
+    plt.ylabel('th-exp')
+    plt.title('Difference between theoretical and predicted')
+    plt.legend()
 
-    # # --- Comparaison des prédictions et des valeurs théoriques ---
-    # plt.figure(figsize=(8, 8))
-    # plt.hist2d(p_values_test, np_pr-np_th, bins=500, cmap='viridis', label='Data')
-    # plt.xlabel('Valeur')
-    # plt.ylabel('th-exp')
-    # plt.title('Ecart entre théorique et prédite')
-    # plt.legend()
+    p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
+    plt.figure(figsize=(8, 8))
+    plt.hist2d(p_values_test, np_pr, bins=500, cmap='viridis', label='Data')
+    plt.plot(p_axis, id.bethe_bloch(938e-3, np.array(p_axis)), color='red')
+    plt.xscale('log')
+    plt.show()
 
-    # p_axis = np.logspace(np.log10(0.0001), np.log10(2), 500)
-    # plt.figure(figsize=(8, 8))
-    # plt.hist2d(p_values_test,np_pr,bins=500, cmap='viridis', label='Data')
-    # plt.plot(p_axis,id.bethe_bloch(938e-3,np.array(p_axis)),color='red')
-    # plt.xscale('log')
-    # plt.show()
-
-    data_plot=pd.DataFrame()
-    data_plot['track_p']=p_values_test
-    data_plot['dedx']=predictions
-    data_plot['Ih']=Ih_values_test
-    #ML.plot_ML_inside(data_plot, False,True , False)
-
-    # ML.plot_diff_Ih(data_plot,True,True)
-    ML.std(data_plot,15,True)
-    # ML.loss_epoch(losses_epoch)
+    ml.loss_epoch(losses_array)

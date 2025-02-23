@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-import Identification as id
+from Core import Identification as id
+from Core import ML_plot as ml
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -16,7 +17,6 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
 from ray.tune import ExperimentAnalysis
-import ML_plot as ml
 
 def collate_fn(batch):
     ndedx_list, dedx_list,dx_list,modulegeom_list, target_list, eta_list, Ih_list = zip(*batch)
