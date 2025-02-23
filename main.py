@@ -1,8 +1,8 @@
-import ML_plot as ML
+from Core import ML_plot as ML
 import subprocess 
-import Creation_plus_filtred as cpf
-import Identification as id
-import file_ML as fml
+from Core import Creation_plus_filtred as cpf
+from Core import Identification as id
+from Core import file_ML as fml
 
 ######################################### Part where we filter the data ###############################################
 

@@ -165,7 +165,7 @@ def start_ML(model,file_model, train,test,tuned_test):
     """
     if train==True:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
-        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch , device)
         torch.save(model.state_dict(), model)
         return losses_epoch
    
@@ -217,6 +217,7 @@ if __name__ == "__main__":
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
     lstm_hidden_size = 128
     lstm_num_layers = 2
+    epoch = 200
 
     model = LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers)
     criterion = nn.HuberLoss() # Si pas une grosse influence des outliers
@@ -227,7 +228,7 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
 
     # --- Entraînement du modèle ---
-    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=10)
+    losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch)
     torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
 
     # --- Sauvegarde et Chargement du modèle ---

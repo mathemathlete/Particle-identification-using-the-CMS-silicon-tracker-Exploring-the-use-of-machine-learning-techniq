@@ -307,7 +307,7 @@ if __name__ == "__main__":
 
     file_name = "Root_Files/ML_training_LSTM.root"
     branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
-    file_model = "model_LSTM_40_epoch_15000_V2a.pth"
+    file_model = "Models/model_LSTM_40_epoch_15000_V2a.pth"
 
     data=cpf.import_data(file_name,branch_of_interest)
     train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
