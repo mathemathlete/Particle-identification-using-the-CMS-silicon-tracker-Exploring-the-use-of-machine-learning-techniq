@@ -275,7 +275,7 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test,tuned_test)
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
         optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
-        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch)
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch,device)
         torch.save(model.state_dict(), model)
         return losses_epoch
    
