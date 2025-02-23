@@ -52,7 +52,7 @@ adjustement_scale = 0.64
 dropout_GRU = 0.18
 dropout_dedx = 0.1
 dropout_LSTM = 0.29
-epoch = 60
+epoch = 20
 
 model = rnn.LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers, dropout_GRU, dropout_dedx, dropout_LSTM, adjustement_scale)
 criterion = nn.MSELoss()
