@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
-import uproot
 import Identification as id
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
@@ -32,7 +31,7 @@ def collate_fn(batch):
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
 
-class ParticleDataset(Dataset):
+class ParticleDataset_V2a(Dataset):
     """
     Dataset class for particle data.
 
@@ -164,6 +163,9 @@ class LSTM_V2a(nn.Module):
         final_value = dedx_pred + self.adjustment_scale * adjustment
         return final_value
 
+
+# As we launch a subprocess in main , we need to define train model & test model for every code model
+# Could be optimized
 def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, device):
     """
     Train the model for a specified number of epochs.
@@ -261,7 +263,7 @@ def test_model(model, dataloader, criterion,device):
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, test_loss
 
-def start_ML(model,file_model, train,test):
+def start_ML(model,file_model, train,test,tuned_test):
     """
     Entry point for starting the machine learning process for training or testing.
 
@@ -270,11 +272,13 @@ def start_ML(model,file_model, train,test):
         file_model (str): Path to the saved model file.
         train (bool): If True, the model will be trained.
         test (bool): If True, the model will be evaluated.
+        tuned_test (bool): If True, the model will be evaluated with tuned hyperparameters.
 
     Returns:
         If training:
             list: Loss history over epochs.
-        If testing:
+            float : test_loss under criterion
+        If testing (either normal test or tuned test):
             tuple: (predictions, test_loss) from the test dataset.
     """
     if train==True:
@@ -288,14 +292,13 @@ def start_ML(model,file_model, train,test):
         print("Evaluation du modèle...")
         predictions, test_loss = test_model(model, test_dataloader, criterion)
         return predictions, test_loss
-
-
-
-
-
-
-
-
+    
+    if tuned_test==True:
+        model = torch.load(file_model)
+        print("Evaluation du modèle...")
+        predictions, test_loss = test_model(model, test_dataloader, criterion)
+        return predictions, test_loss
+    
 
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
@@ -315,7 +318,7 @@ if __name__ == "__main__":
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
     eta_values_train =  train_data["track_eta"].to_list()
     Ih_values_train = train_data["Ih"].to_list()
-    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,eta_values_train,Ih_values_train)
+    dataset = ParticleDataset_V2a(ndedx_values_train, dedx_values, data_th_values,eta_values_train,Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
@@ -324,7 +327,7 @@ if __name__ == "__main__":
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
     eta_values_test =  test_data["track_eta"].to_list()
     Ih_values_test = test_data["Ih"].to_list()
-    test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
+    test_dataset = ParticleDataset_V2a(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
 # --- Initialisation du modèle, fonction de perte et optimiseur ---
@@ -365,6 +368,7 @@ if __name__ == "__main__":
     data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
     data_plot['Ih']=Ih_values_test
+    data_plot['eta']=eta_values_test
     # ML.plot_ML_inside(data_plot, False,True , False)
 
     # ML.plot_diff_Ih(data_plot,True,True)

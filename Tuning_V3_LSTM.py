@@ -317,7 +317,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
 
-    np_th= np.array(targets)
+    np_th = np.array(data_th_values_test)
     np_pr = np.array(predictions)
 
     # --- Comparaison des prédictions et des valeurs théoriques ---

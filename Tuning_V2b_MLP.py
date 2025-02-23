@@ -243,7 +243,6 @@ if __name__ == "__main__":
         "batch_size" : tune.choice([16,32,64]),
     }
 
-
     ray.init(ignore_reinit_error=True)
 
     analysis = tune.run(
@@ -308,7 +307,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
 
-    np_th= np.array(targets)
+    np_th = np.array(data_th_values_test)
     np_pr = np.array(predictions)
 
     # --- Comparaison des prédictions et des valeurs théoriques ---

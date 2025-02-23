@@ -47,9 +47,9 @@ class ParticleDataset(Dataset):
         o = torch.tensor(self.Ih_values[idx], dtype=torch.float32)
         return x, y, z , t , u, o 
 
-class LSTMModel(nn.Module):
-    def __init__(self, dedx_hidden_size, dedx_num_layers, mlp_hidden_size, dropout_GRU, dropout_dedx, dropout_MLP, adjustment_scale, activation):
-        super(LSTMModel, self).__init__()
+class MLP_V1(nn.Module):
+    def __init__(self, dedx_hidden_size, dedx_num_layers, mlp_hidden_size1,mlp_hidden_size2,mlp_hidden_size3, dropout_GRU, dropout_dedx,dropout_MLP, adjustement_scale, activation):
+        super(MLP_V1, self).__init__()
         self.dedx_rnn = nn.GRU(
             input_size=1, 
             hidden_size=dedx_hidden_size,
@@ -59,13 +59,18 @@ class LSTMModel(nn.Module):
         )
         self.dedx_fc = nn.Linear(dedx_hidden_size, 1)
         self.dropout_dedx = nn.Dropout(dropout_dedx)
-        
-        # MLP for adjustment
-        self.adjust_fc_hidden = nn.Linear(5, mlp_hidden_size)  
-        self.adjust_fc_output = nn.Linear(mlp_hidden_size, 1)
+
+        # Instead of an LSTM branch, use a simple MLP
+        self.adjust_mlp = nn.Sequential(
+            nn.Linear(5, mlp_hidden_size1),  # Input: 4 (dedx_pred + extras), Output: mlp_hidden_size1
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_size1, mlp_hidden_size2),  # Output: mlp_hidden_size2
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_size2, mlp_hidden_size3),  # Output: mlp_hidden_size3
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_size3, 1)  # Final output
+        )
         self.dropout_MLP = nn.Dropout(dropout_MLP)
-        
-        # Allow dynamic activation function
         activations = {
             "relu": nn.ReLU(),
             "leaky_relu": nn.LeakyReLU(),
@@ -74,17 +79,21 @@ class LSTMModel(nn.Module):
             "sigmoid": nn.Sigmoid()
         }
         self.activation = activations.get(activation, nn.Identity())
-        self.adjustment_scale = adjustment_scale
+        self.relu = nn.ReLU()
+        # Adjustment scale remains as a multiplier
+        self.adjustment_scale = adjustement_scale
 
     def forward(self, dedx_seq, lengths, extras):
+        # Process dedx_seq with GRU
         packed_seq = pack_padded_sequence(dedx_seq, lengths.cpu(), batch_first=True, enforce_sorted=False)
         _, hidden = self.dedx_rnn(packed_seq)
         hidden_last = hidden[-1]
-        dedx_pred = self.dropout_dedx(self.dedx_fc(hidden_last))
+        dedx_pred = self.relu(self.dropout_dedx(self.dedx_fc(hidden_last)))
         
+        # Concatenate dedx_pred (shape: [batch_size, 1]) with extras ([batch_size, 3]) → [batch_size, 4]
         combined = torch.cat([dedx_pred, extras], dim=1)
-        x = self.activation(self.adjust_fc_hidden(combined))  # Use dynamic activation
-        adjustment = self.dropout_MLP(self.adjust_fc_output(x))
+        x = self.activation(self.adjust_mlp(combined))
+        adjustment = self.dropout_MLP(x)
         
         final_value = dedx_pred + self.adjustment_scale * adjustment
         return final_value
@@ -155,15 +164,17 @@ def test_model(model, dataloader, criterion):
 def train_model_ray(config, checkpoint_dir=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    model = LSTMModel(
+    model = MLP_V1(
         dedx_hidden_size=config["dedx_hidden_size"],
         dedx_num_layers=config["dedx_num_layers"],
-        mlp_hidden_size=config["mlp_hidden_size"],
+        mlp_hidden_size1=config["mlp_hidden_size1"],
+        mlp_hidden_size2=config["mlp_hidden_size2"],
+        mlp_hidden_size3=config["mlp_hidden_size3"],
         dropout_GRU=config["dropout_GRU"],
         dropout_dedx=config["dropout_dedx"],
         dropout_MLP=config["dropout_MLP"],
         adjustment_scale=config["adjustment_scale"],
-        activation=config["activation"]  # Use selected activation function
+        activation=config["activation"]  
     ).to(device)
     
     criterion = nn.MSELoss()
@@ -224,15 +235,17 @@ if __name__ == "__main__":
     search_space = {
         "dedx_hidden_size": tune.choice([256, 512, 1024]),
         "dedx_num_layers": tune.choice([2, 3]),
-        "mlp_hidden_size": tune.choice([64, 128,256,512]),
-        "dropout_dedx" : tune.uniform(0.1,0.5),
+        "mlp_hidden_size1" :tune.choice([500, 750, 1000, 1250]),
+        "mlp_hidden_size2" :tune.choice([250,500, 750, 1000]),
+        "mlp_hidden_size3" : tune.choice([100, 200, 300]),
         "dropout_GRU": tune.uniform(0.1, 0.5),
+        "dropout_dedx" : tune.uniform(0.1,0.5),
         "dropout_MLP": tune.uniform(0.1, 0.5),
         "adjustment_scale": tune.uniform(0.1, 1.0),
         "learning_rate": tune.loguniform(1e-4, 1e-2),   
         "weight_decay": tune.loguniform(1e-6, 1e-3),    
         "batch_size" : tune.choice([16,32,64]),
-        "activation": tune.choice(["relu", "leaky_relu", "elu", "tanh", "sigmoid"])
+        "activation" : tune.choice(["relu", "leaky_relu", "elu", "tanh", "sigmoid"])
     }
 
     ray.init(ignore_reinit_error=True)
@@ -248,23 +261,21 @@ if __name__ == "__main__":
 
 
 
-    # # best_config = analysis.get_best_config(metric="loss", mode="min")
-    # analysis = ExperimentAnalysis("C:/Users/Kamil/ray_results/Tuning_GRU_MLP_1layer")  # Load experiment data
+    best_config = analysis.get_best_config(metric="loss", mode="min")
 
-    # # Get the best trial based on a metric (e.g., lowest loss)
-    # best_trial = analysis.get_best_trial(metric="loss", mode="min")  
-    # best_config = best_trial.config  # Best hyperparameters
-
-    best_model = LSTMModel(
+    best_model = MLP_V1(
         dedx_hidden_size=best_config["dedx_hidden_size"],
         dedx_num_layers=best_config["dedx_num_layers"],
-        mlp_hidden_size=best_config["mlp_hidden_size"],
+        mlp_hidden_size1=best_config["mlp_hidden_size1"],
+        mlp_hidden_size2=best_config["mlp_hidden_size2"],
+        mlp_hidden_size3=best_config["mlp_hidden_size3"],
         dropout_GRU=best_config["dropout_GRU"],
         dropout_dedx=best_config["dropout_dedx"],
         dropout_MLP=best_config["dropout_MLP"],
         adjustment_scale=best_config["adjustment_scale"],
         activation= best_config["activation"]
     )
+
     
     optimizer = optim.Adam(best_model.parameters(), lr=best_config["learning_rate"], weight_decay=best_config["weight_decay"])
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
@@ -306,7 +317,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
 
-    np_th = np.array(targets)
+    np_th = np.array(data_th_values_test)
     np_pr = np.array(predictions)
 
     plt.figure(figsize=(8, 8))
