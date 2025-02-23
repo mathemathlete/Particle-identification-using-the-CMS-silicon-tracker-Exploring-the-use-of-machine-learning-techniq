@@ -33,7 +33,7 @@ def collate_fn(batch):
     targets = torch.tensor(target_list, dtype=torch.float32)
     return padded_sequences, lengths, targets, extras
 
-class ParticleDataset(Dataset):
+class ParticleDataset_V2b(Dataset):
     """
     Dataset class for particle data.
 
@@ -158,32 +158,34 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
     Returns:
         list: A list containing the mean loss for each epoch.
     """
+    model.to(device)  # Ensure model is on GPU
+    loss_array = []
     size = len(dataloader.dataset)
     batch_size = dataloader.batch_size
-    loss_array = []
     start_global = timeit.default_timer()
     for epoch in range(epochs):
         start_epoch = timeit.default_timer()
-        epoch_loss = 0 
+        epoch_loss = 0
         print(f"\nEpoch {epoch+1}/{epochs}\n-------------------------------")
         model.train()
-        for batch, (dedx_seq, dx_seq,geom_seq, lengths, targets, extras) in enumerate(dataloader):
-            dedx_seq,dx_seq,geom_seq, lengths, targets, extras = dedx_seq.to(device),dx_seq.to(device),geom_seq.to(device),lengths.to(device), targets.to(device), extras.to(device)
-            outputs = model(dedx_seq,dx_seq,geom_seq, lengths, extras)
-            outputs = outputs.squeeze()
-            targets = targets.squeeze()
-            loss = criterion(outputs, targets)
 
+        for batch, (inputs, lengths, targets, extras) in enumerate(dataloader):
+            # Move data to GPU
+            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+
+            optimizer.zero_grad()  # Reset gradients
+            outputs = model(inputs, lengths, extras).squeeze()
+            targets= targets.squeeze()
+            loss = criterion(outputs, targets)
             loss.backward()
             optimizer.step()
-            optimizer.zero_grad()
 
             epoch_loss += loss.item()
             if batch % 100 == 0:
-                loss_val, current = loss.item(), batch * batch_size + len(dedx_seq)
+                loss_value = loss.item()
+                current = batch * batch_size + len(inputs)
                 percentage = (current / size) * 100
-                print(f"loss: {loss_val:>7f} ({percentage:.2f}%)")
-
+                print(f"Loss: {loss_value:>7f} ({percentage:.2f}%)")
         mean_epoch_loss = epoch_loss / len(dataloader)
         scheduler.step(mean_epoch_loss)
         print(f"Current Learning Rate: {scheduler.optimizer.param_groups[0]['lr']}")
@@ -234,10 +236,9 @@ def test_model(model, dataloader, criterion):
     return predictions, test_loss
 
 
-def start_ML(model,file_model, train,test,tuned_test):
+def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
     """
     Entry point for starting the machine learning process for training or testing.
-
     Args:
         model (nn.Module): The model instance.
         file_model (str): Path to the saved model file.
@@ -254,20 +255,16 @@ def start_ML(model,file_model, train,test,tuned_test):
     """
     if train==True:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
-        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
-        torch.save(model.state_dict(), model)
+        optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epoch,device)
+        torch.save(model.state_dict(), file_model)
         return losses_epoch
    
     if test==True:
         model.load_state_dict(torch.load(file_model, weights_only=True)) 
         print("Evaluation du modèle...")
-        predictions, test_loss = test_model(model, test_dataloader, criterion)
-        return predictions, test_loss
-    
-    if tuned_test==True:
-        model = torch.load(file_model)
-        print("Evaluation du modèle...")
-        predictions, test_loss = test_model(model, test_dataloader, criterion)
+        predictions, test_loss = test_model(model,dataloader, criterion)
         return predictions, test_loss
     
 
@@ -299,7 +296,7 @@ if __name__ == "__main__":
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
     eta_values_train =  train_data["track_eta"].to_list()
-    dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,eta_values_train)
+    dataset = ParticleDataset_V2b(ndedx_values_train, dedx_values, data_th_values,eta_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
     # --- Préparer les données de tests ---
@@ -307,7 +304,7 @@ if __name__ == "__main__":
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
     eta_values_test =  test_data["track_eta"].to_list()
-    test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test)
+    test_dataset = ParticleDataset_V2b(ndedx_values_test,dedx_values_test, data_th_values_test,eta_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
 # --- Initialisation du modèle, fonction de perte et optimiseur ---
