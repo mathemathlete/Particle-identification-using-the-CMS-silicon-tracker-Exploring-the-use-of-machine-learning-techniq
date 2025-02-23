@@ -1,7 +1,7 @@
 import torch
 import uproot
 import pandas as pd 
-import Identification as id
+from Core import Identification as id
 import ML_first as ml 
 from torch.nn.utils.rnn import pad_sequence
 
