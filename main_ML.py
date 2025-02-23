@@ -24,8 +24,8 @@ ML_test=False
 time_start = rnn.timeit.default_timer()
 
 file_name = "Root_Files/ML_training_LSTM.root" # choose your data file
-branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
-file_model = "Models/best_model_GRU_LSTM_150epoch_V1.pth"
+branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih","dedx_pathlength","dedx_modulegeom"] # choose the branches you want to use
+file_model_save = "Models/best_model_GRU_LSTM_150epoch_V1.pth" 
 
 data=cpf.import_data(file_name,branch_of_interest)
 train_data, test_data = rnn.train_test_split(data, test_size=0.25, random_state=42)
@@ -35,7 +35,7 @@ ndedx_values_train = train_data["ndedx_cluster"].to_list()
 dedx_value_train = train_data["dedx_cluster"].to_list()
 dx_values_train = train_data["dedx_pathlength"].to_list()
 modulegeom_values_train = train_data["dedx_modulegeom"].to_list()
-data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
+data_th_values = id.bethe_bloch(id.m_p, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
 p_values_train = train_data["track_p"].to_list()
 eta_values_train =  train_data["track_eta"].to_list()
 Ih_values_train = train_data["Ih"].to_list()
@@ -63,7 +63,7 @@ dataloader_rnn8 = rnn8.DataLoader(dataset_rnn8, batch_size=32, collate_fn=rnn8.c
 # --- prepare the test data ---
 ndedx_values_test = test_data["ndedx_cluster"].to_list()
 dedx_values_test = test_data["dedx_cluster"].to_list()
-data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
+data_th_values_test = id.bethe_bloch(id.m_p, test_data["track_p"]).to_list()
 p_values_test = test_data["track_p"].to_list()
 eta_values_test =  test_data["track_eta"].to_list()
 Ih_values_test = test_data["Ih"].to_list()
@@ -88,9 +88,6 @@ test_dataloader_rnn7 = rnn7.DataLoader(test_dataset_rnn7, batch_size=32, collate
 test_dataloader_rnn8 = rnn8.DataLoader(test_dataset_rnn8, batch_size=32, collate_fn=rnn8.collate_fn)
 
 
-
-
-
 # --- LSTM Initialisation, 
 dedx_hidden_size = 256
 dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
@@ -113,7 +110,7 @@ dropout_MLP = 0.1
 dropout_dedx = 0.1
 
 # Number of epochs
-epoch = 1
+epoch = 200
 
 model = rnn.LSTMModel(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers, dropout_GRU, dropout_dedx, dropout_LSTM, adjustement_scale)
 model2 = rnn2.LSTM_V2a(dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers, dropout_GRU, dropout_dedx, dropout_LSTM, adjustement_scale)
@@ -137,10 +134,16 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience
 # --- Testing model ---
 if ML_train==True:
     print("Training model...")
+    # If we want to change the model that we want to either save or load, we need to change the model in the function start_ML
+    # which implies to change rnn.start_ML in rnn2.start_ML for example, change data_loader in dataloader_rnn2 and model in model2
+    # We lacked of time in order to make something more flexible
     ML.loss_epoch(rnn.start_ML(model,file_model_save,dataloader_rnn,criterion,epoch, True, False))
 
 if ML_test==True:
     print("Testing model...")
+    # If we want to change the model that we want to either save or load, we need to change the model in the function start_ML
+    # which implies to change rnn.start_ML in rnn2.start_ML for example, change data_loader in dataloader_rnn2 and model in model2
+    # We lacked of time in order to make something more flexible
     predictions, test_loss = rnn.start_ML(model,file_model_save,test_dataloader_rnn,criterion,epoch, False, True)
 
 time_end = rnn.timeit.default_timer()
@@ -168,3 +171,7 @@ ML.biais(data_plot,"track_p",15)
 
 
 ##################################### Part where can eventually run the tuning ############################################
+# We run the tuning as a subprocess because of some casualties that were encountered during the adaptation of the code with the main
+# An upgrade would be to integrate the tuning in the main code
+file_tuning = "Tuning/Tuning_LSTM_GRU_V1.py" # modify this variable to change the tuning file among the one present in directory
+subprocess.run(["python", file_tuning])
