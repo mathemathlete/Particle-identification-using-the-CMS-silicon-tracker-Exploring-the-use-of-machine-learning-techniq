@@ -145,16 +145,52 @@ def test_model(model, dataloader, criterion):
     print(f"Test Loss: {test_loss/len(dataloader):.4f}")
     return predictions, targets, test_loss
 
+def start_ML(model,file_model, train,test,tuned_test):
+    """
+    Entry point for starting the machine learning process for training or testing.
+
+    Args:
+        model (nn.Module): The model instance.
+        file_model (str): Path to the saved model file.
+        train (bool): If True, the model will be trained.
+        test (bool): If True, the model will be evaluated.
+        tuned_test (bool): If True, the model will be evaluated with tuned hyperparameters.
+
+    Returns:
+        If training:
+            list: Loss history over epochs.
+            float : test_loss under criterion
+        If testing (either normal test or tuned test):
+            tuple: (predictions, test_loss) from the test dataset.
+    """
+    if train==True:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
+        losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler,epoch , device)
+        torch.save(model.state_dict(), model)
+        return losses_epoch
+   
+    if test==True:
+        model.load_state_dict(torch.load(file_model, weights_only=True)) 
+        print("Evaluation du modèle...")
+        predictions, test_loss = test_model(model, test_dataloader, criterion)
+        return predictions, test_loss
+    
+    if tuned_test==True:
+        model = torch.load(file_model)
+        print("Evaluation du modèle...")
+        predictions, test_loss = test_model(model, test_dataloader, criterion)
+        return predictions, test_loss
+
 if __name__ == "__main__":
     # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
-    file_name = "Root_Files/ML_training_LSTM_filtré_Max_Ih_15000.root"
-    data = pd.DataFrame()
-    with uproot.open(file_name) as file:
-        key = file.keys()[0]  # open the first Ttree
-        tree = file[key]
-        data = tree.arrays(["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"], library="pd") # open data with array from numpy
-        train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
+
+    file_name = "Root_Files/ML_training_LSTM.root"
+    branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
+    file_model = "model_LSTM_40_epoch_15000_V2a.pth"
+
+    data=cpf.import_data(file_name,branch_of_interest)
+    train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
     # --- Préparer les données de l'entrainement ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
@@ -192,7 +228,7 @@ if __name__ == "__main__":
 
     # --- Entraînement du modèle ---
     losses_epoch = train_model(model, dataloader, criterion, optimizer, scheduler, epochs=10)
-    # torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
+    torch.save(model.state_dict(), "model_LSTM_40_epoch_15000.pth")
 
     # --- Sauvegarde et Chargement du modèle ---
     # model.load_state_dict(torch.load("model_LSTM_plus_GRU_1per1.pth", weights_only=True)) 

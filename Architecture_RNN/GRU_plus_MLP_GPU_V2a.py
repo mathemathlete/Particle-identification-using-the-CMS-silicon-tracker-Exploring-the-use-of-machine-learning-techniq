@@ -364,7 +364,7 @@ if __name__ == "__main__":
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions, test_loss = start_ML(model,file_model, False, True)
+    predictions, test_loss = start_ML(model,file_model, False, True, False)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
@@ -386,7 +386,7 @@ if __name__ == "__main__":
     ML.plot_ratio(data_plot,id.m_p)  
     #ML.density(data_plot,15,ylim_plot)
     #ML.std(data_plot,15,True)
-    #ML.loss_epoch(start_ML(model,file_model, True, False))
+    #ML.loss_epoch(start_ML(model,file_model, False, True, False))
 
 
 

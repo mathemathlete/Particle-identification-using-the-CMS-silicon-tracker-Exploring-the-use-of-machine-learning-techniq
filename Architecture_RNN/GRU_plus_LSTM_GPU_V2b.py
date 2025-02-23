@@ -337,8 +337,7 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',  factor=0.5)
 
     # --- Évaluation du modèle ---
-    predictions, test_loss = start_ML(model,file_model, False,True)
-
+    predictions , test_loss = start_ML(model,file_model, False,True,False)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start

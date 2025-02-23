@@ -359,7 +359,7 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
     
-    predictions, test_loss = start_ML(model,file_model, False, True)
+    predictions , test_loss = start_ML(model,file_model, False,True,False)
     print(f"Final Test Loss: {test_loss}")
 
     time_end = timeit.default_timer()
@@ -376,4 +376,4 @@ if __name__ == "__main__":
     
     ML.plot_ML(data_plot, False,True , False)
     ML.biais(data_plot,"track_eta",15)
-    ML.loss_epoch(start_ML(model,file_model, True, False))
+    ML.loss_epoch(start_ML(model,file_model, False,True,False))

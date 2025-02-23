@@ -354,7 +354,7 @@ if __name__ == "__main__":
 
     # --- Évaluation du modèle ---
     print("Evaluation du modèle...")
-    predictions , test_loss = start_ML(model,file_model, False,True)
+    predictions , test_loss = start_ML(model,file_model, False,True,False)
 
     time_end = timeit.default_timer()
     elapsed_time = time_end - time_start
