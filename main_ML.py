@@ -16,16 +16,16 @@ import torch.optim as optim
 import pandas as pd
 
 #########################################  training/testing ML  ###############################################
-ML_train=False 
-ML_test=True
+ML_train=True 
+ML_test=False
 
 ######################################### Choose the ML model  ###############################################
 # for use the model you want you need to modify the file model and the import name line 6
 time_start = rnn.timeit.default_timer()
 
-file_name = "Root_Files/data_GRU_V3.root" # choose your data file
-branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih","dedx_pathlength","dedx_modulegeom"] # choose the branches you want to use
-file_model_save = "Models/bidon.pth"
+file_name = "Root_Files/ML_training_LSTM.root" # choose your data file
+branch_of_interest = ["ndedx_cluster","dedx_cluster","track_p","track_eta","Ih"]
+file_model = "Models/best_model_GRU_LSTM_150epoch_V1.pth"
 
 data=cpf.import_data(file_name,branch_of_interest)
 train_data, test_data = rnn.train_test_split(data, test_size=0.25, random_state=42)
@@ -131,7 +131,7 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.0002, weight_decay=1.97e-6)
 
 # Learning rate scheduler: reduce LR on plateau
-scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5)
 
 ######################################### Part where we test the ML model ###############################################
 # --- Testing model ---
