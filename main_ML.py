@@ -72,12 +72,11 @@ Ih_values_test = test_data["Ih"].to_list()
 test_dataset_rnn = rnn.ParticleDataset(ndedx_values_test, dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
 test_dataset_rnn2 = rnn2.ParticleDataset_V2a(ndedx_values_test, dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
 test_dataset_rnn3 = rnn3.ParticleDataset_V2b(ndedx_values_test, dedx_values_test, data_th_values_test,eta_values_test)
-# test_dataset_rnn4 = rnn4.ParticleDataset_V3(ndedx_values_test, dedx_values_test, dx_values_test,modulegeom_values_test, data_th_values_test, eta_values_test, Ih_values_test)
+test_dataset_rnn4 = rnn4.ParticleDataset_V3(ndedx_values_test, dedx_values_test, dx_values_train,modulegeom_values_train, data_th_values_test, eta_values_test, Ih_values_test)
 test_dataset_rnn5 = rnn5.ParticleDataset_V1(ndedx_values_test, dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
 test_dataset_rnn6 = rnn6.ParticleDataset_V2a(ndedx_values_test, dedx_values_test, data_th_values_test,eta_values_test,Ih_values_test)
 test_dataset_rnn7 = rnn7.ParticleDataset_V2b(ndedx_values_test, dedx_values_test, data_th_values_test,eta_values_test)
-# test_dataset_rnn8 = rnn8.ParticleDataset_V3(ndedx_values_test, dedx_values_test, dx_values_test,modulegeom_values_test, data_th_values_test, eta_values_test, Ih_values_test)
-
+test_dataset_rnn8 = rnn8.ParticleDataset_V3(ndedx_values_test, dedx_values_test, dx_values_train,modulegeom_values_train, data_th_values_test, eta_values_test, Ih_values_test)
 
 test_dataloader_rnn = rnn.DataLoader(test_dataset_rnn, batch_size=32, collate_fn=rnn.collate_fn)
 test_dataloader_rnn2 = rnn2.DataLoader(test_dataset_rnn2, batch_size=32, collate_fn=rnn2.collate_fn)
@@ -143,7 +142,6 @@ if ML_test==True:
     print("Testing model...")
     predictions, test_loss = rnn.start_ML(model,file_model_save,test_dataloader_rnn,criterion,epoch, False, True) #choose the test_dataloader you want to use
 
-
 time_end = rnn.timeit.default_timer()
 elapsed_time = time_end - time_start
 hours, remainder = divmod(elapsed_time, 3600)
@@ -167,3 +165,5 @@ ML.density(data_plot,15,ylim_plot)
 #ML.biais(data_plot,"track_eta",15)
 #ML.biais(data_plot,"track_p",15)
 
+
+##################################### Part where can eventually run the tuning ############################################

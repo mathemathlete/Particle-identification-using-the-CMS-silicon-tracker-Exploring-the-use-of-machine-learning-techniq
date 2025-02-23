@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import pandas as pd
 import uproot
-import Identification as id
-import ML_plot as ML
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -17,6 +15,15 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
 from ray.tune import ExperimentAnalysis
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+from Core import Identification as id
+from Core import ML_plot as ml
+
 
 def collate_fn(batch):
     """
@@ -349,28 +356,26 @@ if __name__ == "__main__":
         "weight_decay": tune.loguniform(1e-6, 1e-3),    
         "decrease_factor_scheduler": tune.choice([0.5, 0.1])
     }
-    # Le tuning avait été lancé sans évaluation du dropout_dedx, vu qu'on a pas eu le tps de le relancer on le pose à l'extérieur 
-    dropout_dedx = 0.1
 
 
     ray.init(ignore_reinit_error=True)
 
-    # analysis = tune.run(
-    #     train_model_ray,
-    #     config=search_space,
-    #     num_samples=20,
-    #     scheduler=ASHAScheduler(metric="loss", mode="min"),
-    #     search_alg=OptunaSearch(metric="loss", mode="min"),
-    #     resources_per_trial={"cpu": 10, "gpu": 0.8},
-    # )
+    analysis = tune.run(
+        train_model_ray,
+        config=search_space,
+        num_samples=20,
+        scheduler=ASHAScheduler(metric="loss", mode="min"),
+        search_alg=OptunaSearch(metric="loss", mode="min"),
+        resources_per_trial={"cpu": 10, "gpu": 0.8},
+    )
     
-    # best_config = analysis.get_best_config(metric="loss", mode="min")
+    best_config = analysis.get_best_config(metric="loss", mode="min")
     
-    # Shortcut if the model was already trained but we will use instead the start_ML with the .pth file
-    analysis = ExperimentAnalysis("C:/Users/a7xlm/ray_results/Tuning_GRU_LSTM_1per1")  # Load experiment data
-    # Get the best trial based on a metric (e.g., lowest loss)
-    best_trial = analysis.get_best_trial(metric="loss", mode="min")  
-    best_config = best_trial.config  # Best hyperparameters
+    # # Shortcut if the model was already trained but we will use instead the start_ML with the .pth file
+    # analysis = ExperimentAnalysis("C:/Users/a7xlm/ray_results/Tuning_GRU_LSTM_1per1")  # Load experiment data
+    # # Get the best trial based on a metric (e.g., lowest loss)
+    # best_trial = analysis.get_best_trial(metric="loss", mode="min")  
+    # best_config = best_trial.config  # Best hyperparameters
 
     best_model = LSTMModel(
         dedx_hidden_size=best_config["dedx_hidden_size"],
@@ -379,18 +384,18 @@ if __name__ == "__main__":
         lstm_num_layers=best_config["lstm_num_layers"],
         adjustement_scale=best_config["adjustment_scale"],
         dropout_GRU=best_config["dropout_GRU"],
-        dropout_dedx=0.1,
+        dropout_dedx= best_config["dropout_dedx"],
         dropout_LSTM=best_config["dropout_LSTM"]
     )
     
     optimizer = optim.Adam(best_model.parameters(), lr=best_config["learning_rate"], weight_decay=best_config["weight_decay"])
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
-
-    # losses_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
-    # torch.save(best_model.state_dict(), "best_model_GRU_LSTM_200epoch.pth")
+    # Run training with the best hyperparameters
+    losses_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, epochs=200)
+    torch.save(best_model.state_dict(), "best_model_GRU_LSTM_200epoch.pth")
     
-    best_model.load_state_dict(torch.load("D:/work/ITT_PID/Models/best_model_GRU_LSTM_200epoch_V1", weights_only=True,map_location=torch.device('cpu')))
+    # best_model.load_state_dict(torch.load("D:/work/ITT_PID/Models/best_model_GRU_LSTM_200epoch_V1", weights_only=True,map_location=torch.device('cpu')))
 
     predictions, test_loss = test_model(best_model, test_dataloader, criterion)
     print(f"Final Test Loss: {test_loss}")
@@ -398,7 +403,7 @@ if __name__ == "__main__":
     time_end = timeit.default_timer()
     print(f"Execution Time: {time_end - time_start}")
 
-    # --- Plotting ---
+    # Plotting
     data_plot=pd.DataFrame()
     data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
@@ -407,8 +412,10 @@ if __name__ == "__main__":
     data_plot['track_eta']=test_data['track_eta']
 
     ylim_plot=[2,9]
-    ML.plot_ML(data_plot,ylim_plot, True,True, True)
-    ML.plot_ratio(data_plot,id.m_p,[0,1000])  
-    ML.density(data_plot,15,ylim_plot)
-    ML.std(data_plot,15,True)
-    #ML.loss_epoch(start_ML(model,file_model, False, True, False))
+    ml.plot_ML(data_plot,ylim_plot, True,True, True)
+    #ML.plot_ratio(data_plot,id.m_p)  
+    ml.density(data_plot,15,ylim_plot)
+    ml.std(data_plot,15,True)
+    ml.biais(data_plot,"track_eta",15)
+    ml.biais(data_plot,"track_p",15)
+    ml.loss_epoch(losses_array)

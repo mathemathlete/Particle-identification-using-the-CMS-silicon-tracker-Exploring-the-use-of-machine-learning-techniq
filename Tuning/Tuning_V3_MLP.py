@@ -4,9 +4,6 @@ import torch.optim as optim
 import pandas as pd
 import uproot
 # from Core import Identification as id
-import ML_plot as ML
-import Identification as id
-import ML_plot as ml   
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
@@ -19,6 +16,14 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune.search.optuna import OptunaSearch
 from ray.air import session
 from ray.tune import ExperimentAnalysis
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+from Core import Identification as id
+from Core import ML_plot as ml
 
 def collate_fn(batch):
     ndedx_list, dedx_list,dx_list,modulegeom_list, target_list, eta_list, Ih_list = zip(*batch)
@@ -260,22 +265,22 @@ if __name__ == "__main__":
 
     ray.init(ignore_reinit_error=True)
 
-    # analysis = tune.run(
-    #     train_model_ray,
-    #     config=search_space,
-    #     num_samples=10,
-    #     scheduler=ASHAScheduler(metric="loss", mode="min"),
-    #     search_alg=OptunaSearch(metric="loss", mode="min"),
-    #     resources_per_trial={"cpu": 8, "gpu": 0.8},
-    # )
+    analysis = tune.run(
+        train_model_ray,
+        config=search_space,
+        num_samples=10,
+        scheduler=ASHAScheduler(metric="loss", mode="min"),
+        search_alg=OptunaSearch(metric="loss", mode="min"),
+        resources_per_trial={"cpu": 8, "gpu": 0.8},
+    )
     
-    # best_config = analysis.get_best_config(metric="loss", mode="min")
+    best_config = analysis.get_best_config(metric="loss", mode="min")
 
-    analysis = ExperimentAnalysis("C:/Users/a7xlm/ray_results/train_model_ray_2025-02-22_16-45-16")  # Load experiment data
+    # analysis = ExperimentAnalysis("C:/Users/a7xlm/ray_results/train_model_ray_2025-02-22_16-45-16")  # Load experiment data
 
-    # Get the best trial based on a metric (e.g., lowest loss)
-    best_trial = analysis.get_best_trial(metric="loss", mode="min")  
-    best_config = best_trial.config  # Best hyperparameters
+    # # Get the best trial based on a metric (e.g., lowest loss)
+    # best_trial = analysis.get_best_trial(metric="loss", mode="min")  
+    # best_config = best_trial.config  # Best hyperparameters
 
     best_model = MLP_V3(
         dedx_hidden_size=best_config["dedx_hidden_size"],
@@ -293,10 +298,10 @@ if __name__ == "__main__":
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1)
     criterion = nn.MSELoss()
 
-    # loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, 200)
-    # torch.save(best_model.state_dict(), "GRU_plus_MLP_V3_tuned_200epoch.pth")
+    loss_array = train_model(best_model, dataloader, criterion, optimizer, scheduler, 200)
+    torch.save(best_model.state_dict(), "model_tuned_GRU_plus_MLP_V3_200epoch.pth")
 
-    best_model.load_state_dict(torch.load("D:/work/ITT_PID/Models/Best_model_GRU_plus_MLP_V3_tuned.pth", weights_only=True,map_location=torch.device('cpu')))
+    # best_model.load_state_dict(torch.load("D:/work/ITT_PID/Models/Best_model_GRU_plus_MLP_V3_tuned.pth", weights_only=True,map_location=torch.device('cpu')))
 
     predictions, test_loss = test_model(best_model, test_dataloader, criterion)
     print(f"Final Test Loss: {test_loss}")
@@ -304,7 +309,8 @@ if __name__ == "__main__":
     time_end = timeit.default_timer()
     print(f"Execution Time: {time_end - time_start}")
 
-    # --- Création des histogrammes ---
+    # Plotting
+
     data_plot=pd.DataFrame()
     data_plot['track_p']=test_data["track_p"].to_list()
     data_plot['dedx']=predictions
@@ -312,12 +318,11 @@ if __name__ == "__main__":
     data_plot['Ih']=data_plot['Ih']*1e-3
     data_plot['track_eta']=test_data['track_eta']
 
-    ylim_plot=[4,9]
-    ML.plot_ML(data_plot,ylim_plot, True,True, True)
-    ML.plot_ratio(data_plot,id.m_p,[0,1000])  
-    ML.density(data_plot,15,ylim_plot)
-    #ML.std(data_plot,15,True)
-    #ML.loss_epoch(start_ML(model,file_model, False, True, False))
-
-
-    # ml.loss_epoch(loss_array)
+    ylim_plot=[2,9]
+    ml.loss_epoch(loss_array)
+    ml.plot_ML(data_plot,ylim_plot, True,True, True)
+    #ML.plot_ratio(data_plot,id.m_p)  
+    ml.density(data_plot,15,ylim_plot)
+    ml.std(data_plot,15,True)
+    ml.biais(data_plot,"track_eta",15)
+    ml.biais(data_plot,"track_p",15)
