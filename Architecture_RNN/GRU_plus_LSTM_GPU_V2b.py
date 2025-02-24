@@ -208,7 +208,7 @@ def train_model(model, dataloader, criterion, optimizer, scheduler, epochs, devi
     return loss_array
 
         
-def test_model(model, dataloader, criterion,device):
+def test_model(model, dataloader, criterion):
     """
     Evaluate the model on a test dataset.
 
@@ -224,11 +224,11 @@ def test_model(model, dataloader, criterion,device):
             - test_loss (float): Total loss over the test set.
     """
     predictions = []
-    model.eval()  # Mettre le modèle en mode évaluation
+    model.eval()  
     test_loss = 0.0
-    with torch.no_grad():  # Désactiver la grad pour l'évaluation
+    with torch.no_grad():  
         for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
-            inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            # inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
             targets = targets.squeeze()  # Ensure targets are 1-dimensional
@@ -261,6 +261,7 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
         If testing (either normal test or tuned test):
             tuple: (predictions, test_loss) from the test dataset.
     """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
     if train==True:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # Choose GPU if available, otherwise CPU
         optimizer=optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)

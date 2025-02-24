@@ -38,7 +38,7 @@ Here is the following structure of the code :
         - V3 : 
             - Input : [ __dedx__ ,__modulegeom__,__pathlength__]
             - Extras : __N_hit__, __eta__, __I_h__ <br>
-    NB: dedx contains the values of __dedx_charge__ divided by the values of __dedx_pathlength__. ML_V0 contains an old ML with only two Linear Layers.<br>
+    NB: dedx contains the values of __dedx_charge__ divided by the values of __dedx_pathlength__.<br>
     When training is run, at the end of a run, the model is stored in a .pth file that has this template: *model_GRU_[LSTM/MLP]_V[1/2a/2b/3].pth*
     
     + core contains the core files that are either used to process the initial data or to plot the results:
@@ -46,7 +46,19 @@ Here is the following structure of the code :
         - *file_ML.py* filters the output data of *creation_plus_filtred.py* by selecting the area that we want (here we study at low __p__ , especially at __p__  < pmin) and prepares the data by adjusting the *Dataframe* for input into Machine Learning.
         - *ML_plot.py* is used to plot the results of the ML predictions.
         - *Identification.py* generates the theoretical Bethe-Bloch formula. There was also a function to identify a particle based on the (__dedx__ ,__p__ ) value, but the data used wasn't allowing us to use it. It could be used for further development.
-        - *main.py* can be used to call every function that was used, either to train or print ML predictions, but also to filter the data.
+    + *main_filtre.py* is the main function where the filter processing can be made.<br>
+    We can choose the active filters, which means if we consider the conditions that were previously foretold. Then , if we don't use the V3 ML models , that doesn't need [dedx_pathlength] and [dedx_modulegeom], we can choose to select the branch_of_interest that doesn't contain these column in order to make the final data lighter. Else , the branch_of_interest_V3 can work either for V3 and for V1/2a/2b. We then choose the *p* & *max_dedx* value that we want to consider and we can then use the file_in/file_out to choose the name of the data we want to filter and the name of the file_out.
+    + *main_ML.py* is the main function where the ML processing are made <br>
+    We didn't have the time to make a proper function that was simplifying the different changes between the model , so the current code load every dataloader needed for the model , and every model , and you can select 
+    - The number of epoch (line 112)
+    - The activation of the training or Testing (line 19 & 20)
+    - the file_name that define the input data (line 26)
+    - the file_name_save that will be the name of the trained model
+    - eventually the hyperparameters of the LSTM & MLP models (lines 91-98 and 101-109) that can be deduced from tuning (see main_Tuning.py for more informations)
+    - the model that we want to train / test by modifying the associated lines (line 139 for training, line 146 for testing). The changes are explicited in the file as commentary
+    The plot are printed automatically when the user test the model.
+
+    + *main_Tuning.py* is the file that launches the subprocess associated to the tuning that we want to launch. This was the easiest way that we found to run these tuning, It could be upgraded.
 
     + models store all the .pth files to load them for plotting different results, either the *best_model[..].pth* or the *model[..].pth* as explained further for *best_model*
 
@@ -57,10 +69,10 @@ Here is the following structure of the code :
         - *tree.root* contains simulated data of proton & kaon at medium/low __p__ (1GB)
         - *data.root* contains real data of proton & kaon at medium/low __p__ (2GB)
         - *data_GRU_simulated_V3.root* is a pre-filtered dataset from *tree.root* to be used as input in the Machine Learning (ML) files.
-        - *data_GRU_real_V3.root* is a pre-filtered dataset from *data.root* to be used as input in the Machine Learning (ML) files.
+        - *data_GRU_real_V3.root* is a pre-filtered dataset from     *data.root* to be used as input in the Machine Learning (ML) files.
 
     + tuning contains the tuning of different algorithms used to calculate the optimal hyperparameters for achieving the best model precision. When tuning is run, a directory is created with this template:  
-      *"C:/Users/UserName/ray_results/train_model_ray_yyyy-mm-dd_hh-mm-ss"*.  
+      *"C:/Users/[YourUsername]/ray_results/train_model_ray_yyyy-mm-dd_hh-mm-ss"*.  
       All the different trials are stored in this directory using ray[tune]. After tuning ends, the best configuration with the best hyperparameters is selected and launched.<br>
       There is one tuning program for each different algorithm except for both V2a ML (as their structure is very similar to V2a, we assume that the hyperparameters for V2b could work for V2a). The model is then stored in a .pth file with this template: *best_model_GRU_[LSTM/MLP]_V[1/2a/2b/3].pth*<br>
       For the user, we assume that tuning should be run only once. Afterward, either:<br>
@@ -72,7 +84,6 @@ Here is the following structure of the code :
         - *Extraction_tab.py* prints the first value of a root file.
         - *Recup_Tuning.py* prints the best hyperparameters from a completed tuning session.
 
-    + venv contains the directory for installing the correct environment.
 
     
 ## Creation of the environment 

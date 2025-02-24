@@ -237,9 +237,9 @@ def test_model(model, dataloader, criterion):
     predictions = []
     model.eval()  # Mettre le modèle en mode évaluation
     test_loss = 0.0
-    with torch.no_grad():  # Désactiver la grad pour l'évaluation
+    with torch.no_grad():  
         for inputs, lengths, targets, extras in dataloader:  # Expecting 3 values from the dataloader
-            #inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
+            # inputs, lengths, targets, extras = inputs.to(device), lengths.to(device), targets.to(device), extras.to(device)
             outputs = model(inputs, lengths, extras)  # Pass both inputs and lengths to the model
             outputs = outputs.squeeze()  # Ensure outputs are 1-dimensional
             targets = targets.squeeze()  # Ensure targets are 1-dimensional
@@ -287,7 +287,6 @@ def start_ML(model,file_model,dataloader,criterion,epoch, train,test):
    
 
 if __name__ == "__main__":
-    # --- Importation des données ( à remplacer par la fonction d'importation du X)---
     time_start = timeit.default_timer()
 
     file_name = "Root_Files/data_real_filtred.root"
@@ -297,7 +296,6 @@ if __name__ == "__main__":
     data=cpf.import_data(file_name,branch_of_interest)
     train_data, test_data = train_test_split(data, test_size=0.25, random_state=42)
 
-    # --- Préparer les données de l'entrainement ---
     ndedx_values_train = train_data["ndedx_cluster"].to_list()
     dedx_values = train_data["dedx_cluster"].to_list()
     data_th_values = id.bethe_bloch(938e-3, train_data["track_p"]).to_list()  # Targets (valeurs théoriques)
@@ -307,7 +305,6 @@ if __name__ == "__main__":
     dataset = ParticleDataset(ndedx_values_train, dedx_values, data_th_values,p_values_train,eta_values_train,Ih_values_train)
     dataloader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=collate_fn)
 
-    # --- Préparer les données de tests ---
     ndedx_values_test = test_data["ndedx_cluster"].to_list()
     dedx_values_test = test_data["dedx_cluster"].to_list()
     data_th_values_test = id.bethe_bloch(938e-3, test_data["track_p"]).to_list()
@@ -317,7 +314,6 @@ if __name__ == "__main__":
     test_dataset = ParticleDataset(ndedx_values_test,dedx_values_test, data_th_values_test,p_values_test,eta_values_test,Ih_values_test)
     test_dataloader = DataLoader(test_dataset, batch_size=32, collate_fn=collate_fn)
 
-    # --- Initialisation du modèle, fonction de perte et optimiseur ---
     dedx_hidden_size = 256
     dedx_num_layers = 2   # With one layer, GRU dropout is not applied.
     lstm_hidden_size = 128
@@ -330,7 +326,7 @@ if __name__ == "__main__":
 
     model = LSTMModel( dedx_hidden_size, dedx_num_layers, lstm_hidden_size, lstm_num_layers,
                  adjustment_scale, dropout_GRU,dropout_dedx, dropout_LSTM)
-    criterion = nn.MSELoss() # Si pas une grosse influence des outliers
+    criterion = nn.MSELoss()
     # optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     optimizer = optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-5)
     
